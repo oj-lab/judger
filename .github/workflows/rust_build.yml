@@ -16,6 +16,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Install libseccomp-dev
+      run: sudo apt-get install libseccomp-dev
     - name: Build
       run: cargo build --verbose
     - name: Run tests
