@@ -4,6 +4,13 @@
 
 Judger is supposed to be a simple **sandbox service** which works for online-judge systems.
 
+## Before run
+judger-rs is based on `libseccomp`, so we need to have this library installed.
+
+```
+sudo apt install libseccomp-dev
+```
+
 ## Run by admin
 
 `judge-core` build a sandbox environment by `seccomp`, so it's neccessary to run tests or examples by admin.

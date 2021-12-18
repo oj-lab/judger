@@ -1,13 +1,13 @@
 pub mod cpp_loader;
 
-use seccomp::*;
+use libseccomp::{error::SeccompError, ScmpAction, ScmpFilterContext};
 
 pub trait SeccompCtxLoader {
-    fn get_default_kill_context() -> Result<Context, SeccompError> {
-        Context::default(Action::Kill)
+    fn get_default_kill_context() -> Result<ScmpFilterContext, SeccompError> {
+        ScmpFilterContext::new_filter(ScmpAction::KillProcess)
     }
 
-    fn add_rules(ctx: &mut Context) -> Result<&Context, SeccompError>;
+    fn add_rules(ctx: &mut ScmpFilterContext) -> Result<&ScmpFilterContext, SeccompError>;
 
     fn load_ctx() -> Result<(), SeccompError> {
         let mut ctx = Self::get_default_kill_context()?;
