@@ -27,11 +27,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 
 [[package]]
+name = "cfg-if"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
 name = "judge-core"
 version = "0.1.0"
 dependencies = [
  "libc",
  "libseccomp",
+ "nix 0.23.1",
  "tokio",
 ]
 
@@ -53,7 +60,7 @@ checksum = "36ad71a5b66ceef3acfe6a3178b29b4da063f8bcb2c36dab666d52a7a9cfdb86"
 dependencies = [
  "libc",
  "libseccomp-sys",
- "nix",
+ "nix 0.17.0",
  "pkg-config",
 ]
 
@@ -64,6 +71,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "539912de229a4fc16e507e8df12a394038a524a5b5b6c92045ad344472aac475"
 
 [[package]]
+name = "memoffset"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5aa361d4faea93603064a027415f07bd8e1d5c88c9fbf68bf56a285428fd79ce"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
 name = "nix"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -71,9 +87,22 @@ checksum = "50e4785f2c3b7589a0d0c1dd60285e1188adac4006e8abd6dd578e1567027363"
 dependencies = [
  "bitflags",
  "cc",
- "cfg-if",
+ "cfg-if 0.1.10",
  "libc",
  "void",
+]
+
+[[package]]
+name = "nix"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f866317acbd3a240710c63f065ffb1e4fd466259045ccb504130b7f668f35c6"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if 1.0.0",
+ "libc",
+ "memoffset",
 ]
 
 [[package]]
