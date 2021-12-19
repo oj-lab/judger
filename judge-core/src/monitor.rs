@@ -4,9 +4,12 @@ use nix::{
 };
 
 pub fn run_judge() {
-    match unsafe{fork()} {
+    match unsafe { fork() } {
         Ok(ForkResult::Parent { child, .. }) => {
-            println!("Continuing execution in parent process, new child has pid: {}", child);
+            println!(
+                "Continuing execution in parent process, new child has pid: {}",
+                child
+            );
             waitpid(child, None).unwrap();
         }
         Ok(ForkResult::Child) => {
@@ -15,7 +18,7 @@ pub fn run_judge() {
             unsafe { libc::_exit(0) };
         }
         Err(_) => println!("Fork failed"),
-     }
+    }
 }
 
 #[cfg(test)]
