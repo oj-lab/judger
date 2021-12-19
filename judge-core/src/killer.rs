@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-pub fn kill(pid: u32) {
+fn kill(pid: u32) {
     unsafe {
         libc::kill(pid as i32, libc::SIGKILL);
     }
@@ -16,7 +16,7 @@ pub async fn timeout_killer(pid: u32, timeout: u64) {
 
 #[cfg(test)]
 mod kill {
-    use crate::killer::*;
+    use super::*;
 
     fn start_test_process() -> u32 {
         use std::process::Command;
