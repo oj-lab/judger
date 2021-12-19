@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    time::Duration,
+    thread::sleep,
+};
 
 fn kill(pid: u32) {
     unsafe {
@@ -6,16 +9,14 @@ fn kill(pid: u32) {
     }
 }
 
-pub async fn timeout_killer(pid: u32, timeout: u64) {
-    use tokio::time::sleep;
-
-    sleep(Duration::from_millis(timeout)).await;
+pub fn timeout_killer(pid: u32, timeout: u64) {
+    sleep(Duration::from_millis(timeout));
 
     kill(pid);
 }
 
 #[cfg(test)]
-mod kill {
+mod killer {
     use super::*;
 
     fn start_test_process() -> u32 {
@@ -37,11 +38,13 @@ mod kill {
         println!("killed pid:{}", pid);
     }
 
-    #[tokio::test]
-    async fn test_timeout_killer() {
+    #[test]
+    fn test_timeout_killer() {
+        use std::thread;
         let pid = start_test_process();
 
-        timeout_killer(pid, 5000).await;
+        thread::spawn(move || timeout_killer(pid, 5000));
+        sleep(Duration::from_millis(5000));
 
         println!("killed pid:{}", pid);
     }
