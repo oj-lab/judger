@@ -21,7 +21,7 @@ pub fn load_rules(loader: Box<dyn SeccompCtxLoader>) -> Result<(), SeccompError>
 }
 
 #[cfg(test)]
-pub mod rule {
+pub mod rules {
     use nix::{
         sys::wait::waitpid,
         unistd::{fork, write, ForkResult},
