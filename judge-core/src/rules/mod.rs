@@ -21,7 +21,7 @@ pub fn load_rules(loader: Box<dyn SeccompCtxLoader>) -> Result<(), SeccompError>
 }
 
 #[cfg(test)]
-pub mod rule {
+pub mod rules {
     use nix::{
         sys::wait::waitpid,
         unistd::{fork, write, ForkResult},
@@ -32,9 +32,12 @@ pub mod rule {
         use super::cpp_loader::CppLoader;
         use super::*;
 
-        match unsafe{fork()} {
+        match unsafe { fork() } {
             Ok(ForkResult::Parent { child, .. }) => {
-                println!("Continuing execution in parent process, new child has pid: {}", child);
+                println!(
+                    "Continuing execution in parent process, new child has pid: {}",
+                    child
+                );
                 waitpid(child, None).unwrap();
             }
             Ok(ForkResult::Child) => {
@@ -44,6 +47,6 @@ pub mod rule {
                 unsafe { libc::_exit(0) };
             }
             Err(_) => println!("Fork failed"),
-         }
+        }
     }
 }
