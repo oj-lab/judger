@@ -1,7 +1,4 @@
-use std::{
-    time::Duration,
-    thread::sleep,
-};
+use std::{thread::sleep, time::Duration};
 
 fn kill(pid: u32) {
     unsafe {

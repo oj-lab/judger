@@ -1,16 +1,10 @@
+use crate::{killer::timeout_killer, utils::get_default_rusage};
+use libc::{c_int, rusage, wait4, WSTOPPED};
 use nix::{
     sys::wait::waitpid,
     unistd::{fork, write, ForkResult},
 };
-use std::{
-    process::Command,
-    thread,
-};
-use libc::{wait4, rusage, c_int, WSTOPPED};
-use crate::{
-    killer::timeout_killer,
-    utils::get_default_rusage,
-};
+use std::{process::Command, thread};
 
 pub fn run_judge() {
     match unsafe { fork() } {
@@ -29,7 +23,7 @@ pub fn run_judge() {
             let child = Command::new("./../infinite_loop")
                 .spawn()
                 .expect("Failed to execute child");
-            
+
             let pid = child.id();
             thread::spawn(move || timeout_killer(pid, 5000));
 
@@ -38,7 +32,7 @@ pub fn run_judge() {
             unsafe {
                 wait4(pid as i32, &mut status, WSTOPPED, &mut usage);
             }
-            
+
             unsafe { libc::_exit(0) };
         }
         Err(_) => println!("Fork failed"),

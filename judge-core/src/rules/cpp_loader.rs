@@ -8,4 +8,3 @@ impl SeccompCtxLoader for CppLoader {
         Ok(ctx)
     } // add_rules
 }
-
