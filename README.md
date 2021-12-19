@@ -5,6 +5,16 @@
 
 Judger is supposed to be a simple **sandbox service** which works for online-judge systems.
 
+## System
+
+judger-rs currently use `nix` to make necessary system invoke like `fork()`.
+
+So you might need to check whether you are using the supported system from the main-page of [nix](https://github.com/nix-rust/nix).
+
+**Briefly speaking, judger-rs is now supposing you are decided to run it on linux.**
+
+We'll consider other platform, but in a lower priority.
+
 ## Before run
 judger-rs is based on `libseccomp`, so we need to have this library installed.
 
