@@ -1,10 +1,10 @@
-use crate::{killer::timeout_killer, utils::get_default_rusage};
-use libc::{c_int, rusage, wait4, WSTOPPED};
+use crate::{killer::timeout_killer, runner::run_process};
+
 use nix::{
     sys::wait::waitpid,
     unistd::{fork, write, ForkResult},
 };
-use std::{process::Command, thread};
+use std::thread;
 
 pub fn run_judge() {
     match unsafe { fork() } {
@@ -13,25 +13,17 @@ pub fn run_judge() {
                 "Continuing execution in parent process, new child has pid: {}",
                 child
             );
+
+            thread::spawn(move || timeout_killer(child.as_raw() as u32, 5000));
+            println!("timeout_killer has been set.");
+
             waitpid(child, None).unwrap();
         }
         Ok(ForkResult::Child) => {
             // Unsafe to use `println!` (or `unwrap`) here. See Safety.
             write(libc::STDOUT_FILENO, "I'm a new child process\n".as_bytes()).ok();
 
-            // TODO: invoke runner
-            let child = Command::new("./../infinite_loop")
-                .spawn()
-                .expect("Failed to execute child");
-
-            let pid = child.id();
-            thread::spawn(move || timeout_killer(pid, 5000));
-
-            let mut status: c_int = 0;
-            let mut usage: rusage = get_default_rusage();
-            unsafe {
-                wait4(pid as i32, &mut status, WSTOPPED, &mut usage);
-            }
+            run_process();
 
             unsafe { libc::_exit(0) };
         }
