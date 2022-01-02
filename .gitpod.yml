@@ -1,3 +1,2 @@
 tasks:
-- before: sudo apt-get update
-- init: sudo apt-get install libseccomp-dev -y
+- init: sudo apt-get update && sudo apt-get install libseccomp-dev -y
