@@ -1,12 +1,9 @@
-use crate::{killer::timeout_killer, runner::run_process};
-
-use nix::{
-    sys::wait::waitpid,
-    unistd::{fork, write, ForkResult},
-};
+use crate::{killer::timeout_killer, runner::run_process, utils::get_default_rusage};
+use libc::{c_int, rusage, wait4, WSTOPPED};
+use nix::unistd::{fork, write, ForkResult};
 use std::thread;
 
-pub fn run_judge() {
+pub fn run_judge() -> Option<(c_int, rusage)> {
     match unsafe { fork() } {
         Ok(ForkResult::Parent { child, .. }) => {
             println!(
@@ -15,9 +12,17 @@ pub fn run_judge() {
             );
 
             thread::spawn(move || timeout_killer(child.as_raw() as u32, 5000));
-            println!("timeout_killer has been set.");
+            println!("timeout_killer has been set");
 
-            waitpid(child, None).unwrap();
+            let mut status: c_int = 0;
+            let mut usage: rusage = get_default_rusage();
+            unsafe {
+                wait4(child.as_raw() as i32, &mut status, WSTOPPED, &mut usage);
+            }
+
+            println!("Detected process exit");
+
+            Some((status, usage))
         }
         Ok(ForkResult::Child) => {
             // Unsafe to use `println!` (or `unwrap`) here. See Safety.
@@ -25,9 +30,13 @@ pub fn run_judge() {
 
             run_process();
 
-            unsafe { libc::_exit(0) };
+            None
         }
-        Err(_) => println!("Fork failed"),
+        Err(_) => {
+            println!("Fork failed");
+
+            None
+        }
     }
 }
 
@@ -37,6 +46,8 @@ pub mod monitor {
 
     #[test]
     fn test_run_judge() {
-        run_judge();
+        let result = run_judge();
+        println!("{:?}", result.unwrap().0);
+        println!("{:?}", result.unwrap().1);
     }
 }

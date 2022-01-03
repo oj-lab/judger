@@ -4,6 +4,8 @@ fn kill(pid: u32) {
     unsafe {
         libc::kill(pid as i32, libc::SIGKILL);
     }
+
+    println!("killed process by killer")
 }
 
 pub fn timeout_killer(pid: u32, timeout: u64) {
