@@ -1,2 +1,6 @@
 tasks:
-- command: sudo apt-get update && sudo apt-get install libseccomp-dev -y
+- command: >
+    sudo apt-get update && 
+    sudo apt-get install libseccomp-dev -y && 
+    rustup install 1.58
+    rustup default 1.58
