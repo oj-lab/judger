@@ -2,5 +2,6 @@ tasks:
 - command: >
     sudo apt-get update && 
     sudo apt-get install libseccomp-dev -y && 
-    rustup install 1.58 && 
-    rustup default 1.58
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rust_install.sh && 
+    /bin/sh rust_install.sh -y && 
+    rm rust_install.sh
