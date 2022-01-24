@@ -17,7 +17,11 @@ pub fn run_process() {
     set_limit().unwrap();
 
     let input_file = File::open("../tmp/in").unwrap();
-    let output_file = File::options().write(true).open("../tmp/out").unwrap();
+    let output_file = File::options()
+        .write(true)
+        .truncate(true) // Overwrite the whole content of this file
+        .open("../tmp/out")
+        .unwrap();
 
     let input_raw_fd: RawFd = input_file.as_raw_fd();
     let stdin_raw_fd: RawFd = io::stdin().as_raw_fd();

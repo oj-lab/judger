@@ -3,5 +3,7 @@
 using namespace std;
 
 int main() {
-    cout << "Hello, judger-rs" << endl;
+    string s;
+    cin >> s;
+    cout << "Hello! " << s << endl;
 }
