@@ -2,22 +2,20 @@ pub mod cpp_loader;
 
 use libseccomp::{error::SeccompError, ScmpAction, ScmpFilterContext};
 
-pub trait SeccompCtxLoader {
-    fn get_default_kill_context(&self) -> Result<ScmpFilterContext, SeccompError> {
-        ScmpFilterContext::new_filter(ScmpAction::KillProcess)
-    }
-
-    fn add_rules(&self, ctx: ScmpFilterContext) -> Result<ScmpFilterContext, SeccompError>;
-
-    fn load_ctx(&self) -> Result<(), SeccompError> {
-        let ctx = self.get_default_kill_context()?;
-        self.add_rules(ctx)?.load()?;
-        Ok(())
-    }
+pub fn get_default_kill_context() -> Result<ScmpFilterContext, SeccompError> {
+    ScmpFilterContext::new_filter(ScmpAction::KillProcess)
 }
 
-pub fn load_rules(loader: Box<dyn SeccompCtxLoader>) -> Result<(), SeccompError> {
-    loader.load_ctx()
+pub trait SeccompCtxLoader {
+    fn add_rules(&mut self) -> Result<(), SeccompError>;
+
+    fn load_ctx(&self) -> Result<(), SeccompError>;
+}
+
+pub fn load_rules(mut loader: Box<dyn SeccompCtxLoader>) -> Result<(), SeccompError> {
+    loader.add_rules()?;
+    loader.load_ctx()?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -43,7 +41,10 @@ pub mod rules {
             Ok(ForkResult::Child) => {
                 // Unsafe to use `println!` (or `unwrap`) here. See Safety.
                 write(libc::STDOUT_FILENO, "I'm a new child process\n".as_bytes()).ok();
-                load_rules(Box::new(CppLoader)).unwrap();
+                load_rules(Box::new(CppLoader {
+                    ctx: get_default_kill_context().unwrap(),
+                }))
+                .unwrap();
                 unsafe { libc::_exit(0) };
             }
             Err(_) => println!("Fork failed"),

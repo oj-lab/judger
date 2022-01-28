@@ -1,3 +1,4 @@
+use crate::rules::{cpp_loader::CppLoader, get_default_kill_context, load_rules};
 use nix::{
     errno::Errno,
     sys::resource::{
@@ -29,6 +30,11 @@ pub fn run_process() {
     let output_raw_fd: RawFd = output_file.as_raw_fd();
     let stdout_raw_fd: RawFd = io::stdout().as_raw_fd();
     dup2(output_raw_fd, stdout_raw_fd).unwrap();
+
+    load_rules(Box::new(CppLoader {
+        ctx: get_default_kill_context().unwrap(),
+    }))
+    .unwrap();
 
     execve(
         &CString::new("./../read_and_write").expect("CString::new failed"),

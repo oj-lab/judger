@@ -23,6 +23,8 @@ Developing judger-rs in local computer can be dangerous.
 We setup `.gitpod.yml` for this project.
 When you open this project in a **gitpod workplace**, you'll get everything necessary installed. And docker contained workplace can give you chances to make mistake.
 
+And we pre-install strace for helping you analysing syscalls.
+
 ## Before run
 
 judger-rs is based on `libseccomp`, so we need to have this library installed.
