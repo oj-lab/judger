@@ -1,4 +1,8 @@
-use crate::{killer::timeout_killer, runner::run_process, utils::get_default_rusage};
+use crate::{
+    killer::timeout_killer,
+    runner::{run_process, ResourceLimitConfig, RunnerConfig},
+    utils::get_default_rusage,
+};
 use libc::{c_int, rusage, wait4, WSTOPPED};
 use nix::unistd::{fork, write, ForkResult};
 use std::thread;
@@ -28,7 +32,12 @@ pub fn run_judge() -> Option<(c_int, rusage)> {
             // Unsafe to use `println!` (or `unwrap`) here. See Safety.
             write(libc::STDOUT_FILENO, "I'm a new child process\n".as_bytes()).ok();
 
-            run_process();
+            run_process(RunnerConfig {
+                program_path: "./../read_and_write".to_owned(),
+                input_file_path: "../tmp/in".to_owned(),
+                output_file_path: "../tmp/out".to_owned(),
+                rlimit_config: ResourceLimitConfig::default(),
+            });
 
             None
         }
