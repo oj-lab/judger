@@ -23,15 +23,15 @@ pub struct RunnerConfig {
     pub rlimit_config: ResourceLimitConfig,
 }
 
-pub fn run_process(config: RunnerConfig) -> Result<(), JudgeCoreError> {
+pub fn run_process(config: &RunnerConfig) -> Result<(), JudgeCoreError> {
     // TODO: Handle error
-    set_resource_limit(config.rlimit_config)?;
+    set_resource_limit(&config.rlimit_config)?;
 
-    let input_file = File::open(config.input_file_path)?;
+    let input_file = File::open(&config.input_file_path)?;
     let output_file = File::options()
         .write(true)
         .truncate(true) // Overwrite the whole content of this file
-        .open(config.output_file_path)
+        .open(&config.output_file_path)
         .unwrap();
 
     let input_raw_fd: RawFd = input_file.as_raw_fd();
@@ -75,7 +75,7 @@ impl Default for ResourceLimitConfig {
     }
 }
 
-fn set_resource_limit(config: ResourceLimitConfig) -> Result<(), Errno> {
+fn set_resource_limit(config: &ResourceLimitConfig) -> Result<(), Errno> {
     setrlimit(RLIMIT_STACK, config.stack_limit.0, config.stack_limit.1)?;
     setrlimit(RLIMIT_AS, config.as_limit.0, config.as_limit.1)?;
     setrlimit(RLIMIT_CPU, config.cpu_limit.0, config.cpu_limit.1)?;

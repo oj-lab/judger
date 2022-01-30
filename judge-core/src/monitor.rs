@@ -4,11 +4,27 @@ use crate::{
     runner::{run_process, RunnerConfig},
     utils::get_default_rusage,
 };
-use libc::{c_int, rusage, wait4, WSTOPPED};
+use libc::{c_int, rusage, wait4, WEXITSTATUS, WSTOPPED, WTERMSIG};
 use nix::unistd::{fork, write, ForkResult};
-use std::thread;
+use std::{
+    thread,
+    time::{Duration, Instant},
+};
 
-pub fn run_judge(runner_config: RunnerConfig) -> Result<Option<(c_int, rusage)>, JudgeCoreError> {
+#[derive(Debug)]
+pub struct RawJudgeResultInfo {
+    pub exit_status: c_int,
+    pub exit_signal: c_int,
+    pub exit_code: c_int,
+    pub real_time_cost: Duration,
+    pub resource_usage: rusage,
+}
+
+pub fn run_judge(
+    runner_config: &RunnerConfig,
+) -> Result<Option<RawJudgeResultInfo>, JudgeCoreError> {
+    let now = Instant::now();
+
     match unsafe { fork() } {
         Ok(ForkResult::Parent { child, .. }) => {
             println!(
@@ -27,7 +43,13 @@ pub fn run_judge(runner_config: RunnerConfig) -> Result<Option<(c_int, rusage)>,
 
             println!("Detected process exit");
 
-            Ok(Some((status, usage)))
+            Ok(Some(RawJudgeResultInfo {
+                exit_status: status,
+                exit_signal: WTERMSIG(status),
+                exit_code: WEXITSTATUS(status),
+                real_time_cost: now.elapsed(),
+                resource_usage: usage,
+            }))
         }
         Ok(ForkResult::Child) => {
             // Unsafe to use `println!` (or `unwrap`) here. See Safety.
@@ -48,6 +70,7 @@ pub fn run_judge(runner_config: RunnerConfig) -> Result<Option<(c_int, rusage)>,
 #[cfg(test)]
 pub mod monitor {
     use super::*;
+    use crate::result::infer_result;
     use crate::runner::ResourceLimitConfig;
 
     #[test]
@@ -58,9 +81,10 @@ pub mod monitor {
             output_file_path: "../tmp/out".to_owned(),
             rlimit_config: ResourceLimitConfig::default(),
         };
-        let result = run_judge(runner_config).expect("error
-        ");
-        println!("{:?}", result.unwrap().0);
-        println!("{:?}", result.unwrap().1);
+        let result = infer_result(
+            run_judge(&runner_config).expect("error").unwrap(),
+            runner_config,
+        );
+        println!("{:?}", result);
     }
 }
