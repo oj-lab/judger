@@ -1,4 +1,7 @@
-use crate::rules::{cpp_loader::CppLoader, get_default_kill_context, load_rules};
+use crate::{
+    error::JudgeCoreError,
+    rules::{cpp_loader::CppLoader, get_default_kill_context, load_rules},
+};
 use nix::{
     errno::Errno,
     sys::resource::{
@@ -20,11 +23,11 @@ pub struct RunnerConfig {
     pub rlimit_config: ResourceLimitConfig,
 }
 
-pub fn run_process(config: RunnerConfig) {
+pub fn run_process(config: RunnerConfig) -> Result<(), JudgeCoreError> {
     // TODO: Handle error
-    set_resource_limit(config.rlimit_config).unwrap();
+    set_resource_limit(config.rlimit_config)?;
 
-    let input_file = File::open(config.input_file_path).unwrap();
+    let input_file = File::open(config.input_file_path)?;
     let output_file = File::options()
         .write(true)
         .truncate(true) // Overwrite the whole content of this file
@@ -33,22 +36,23 @@ pub fn run_process(config: RunnerConfig) {
 
     let input_raw_fd: RawFd = input_file.as_raw_fd();
     let stdin_raw_fd: RawFd = io::stdin().as_raw_fd();
-    dup2(input_raw_fd, stdin_raw_fd).unwrap();
+    dup2(input_raw_fd, stdin_raw_fd)?;
     let output_raw_fd: RawFd = output_file.as_raw_fd();
     let stdout_raw_fd: RawFd = io::stdout().as_raw_fd();
-    dup2(output_raw_fd, stdout_raw_fd).unwrap();
+    dup2(output_raw_fd, stdout_raw_fd)?;
 
     load_rules(Box::new(CppLoader {
-        ctx: get_default_kill_context().unwrap(),
-    }))
-    .unwrap();
+        ctx: get_default_kill_context()?,
+    }))?;
 
     execve(
-        &CString::new(config.program_path.as_str()).expect("CString::new failed"),
-        &[CString::new("").expect("CString::new failed")],
-        &[CString::new("").expect("CString::new failed")],
+        &CString::new(config.program_path.as_str())?,
+        &[CString::new("")?],
+        &[CString::new("")?],
     )
     .unwrap();
+
+    Ok(())
 }
 
 pub struct ResourceLimitConfig {
@@ -78,22 +82,23 @@ fn set_resource_limit(config: ResourceLimitConfig) -> Result<(), Errno> {
     setrlimit(RLIMIT_NPROC, config.nproc_limit.0, config.nproc_limit.1)?;
     setrlimit(RLIMIT_FSIZE, config.fsize_limit.0, config.fsize_limit.1)?;
 
-    // setrlimit(
-    //     RLIMIT_STACK,
-    //     Some(1024 * 1024 * 1024),
-    //     Some(1024 * 1024 * 1024),
-    // )?;
-    // setrlimit(
-    //     RLIMIT_AS,
-    //     Some(1024 * 1024 * 1024),
-    //     Some(1024 * 1024 * 1024),
-    // )?;
-    // setrlimit(RLIMIT_CPU, Some(1), Some(1))?;
-    // setrlimit(RLIMIT_NPROC, None, None)?;
-    // setrlimit(
-    //     RLIMIT_FSIZE,
-    //     Some(1024 * 1024 * 1024),
-    //     Some(1024 * 1024 * 1024),
-    // )?;
     Ok(())
 }
+
+// setrlimit(
+//     RLIMIT_STACK,
+//     Some(1024 * 1024 * 1024),
+//     Some(1024 * 1024 * 1024),
+// )?;
+// setrlimit(
+//     RLIMIT_AS,
+//     Some(1024 * 1024 * 1024),
+//     Some(1024 * 1024 * 1024),
+// )?;
+// setrlimit(RLIMIT_CPU, Some(1), Some(1))?;
+// setrlimit(RLIMIT_NPROC, None, None)?;
+// setrlimit(
+//     RLIMIT_FSIZE,
+//     Some(1024 * 1024 * 1024),
+//     Some(1024 * 1024 * 1024),
+// )?;
