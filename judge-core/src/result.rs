@@ -22,10 +22,8 @@ pub fn infer_result(raw_info: RawJudgeResultInfo, _runner_config: RunnerConfig) 
     // TODO: Fullfill problem infer
     if raw_info.exit_signal == libc::SIGUSR1 {
         problems.insert(JudgeProblemType::SystemError);
-    } else {
-        if raw_info.exit_code != 0 {
-            problems.insert(JudgeProblemType::RuntimeError);
-        }
+    } else if raw_info.exit_code != 0 {
+        problems.insert(JudgeProblemType::RuntimeError);
     }
 
     JudgeResultInfo {

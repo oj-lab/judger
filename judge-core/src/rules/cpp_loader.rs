@@ -10,7 +10,7 @@ impl SeccompCtxLoader for CppLoader {
         for syscall_name in get_white_list() {
             self.ctx.add_rule_exact(
                 ScmpAction::Allow,
-                get_syscall_from_name(&syscall_name, None)?,
+                get_syscall_from_name(syscall_name, None)?,
             )?;
         }
         Ok(())
