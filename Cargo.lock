@@ -42,9 +42,9 @@ checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
 
 [[package]]
 name = "libseccomp"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "521a461abf60a22097e76d96605dc66fbcfd7e81b4692b6135e48cdf99eb5d1f"
+checksum = "49bda1fbf25c42ac8942ff7df1eb6172a3bc36299e84be0dba8c888a7db68c80"
 dependencies = [
  "libc",
  "libseccomp-sys",
@@ -53,9 +53,9 @@ dependencies = [
 
 [[package]]
 name = "libseccomp-sys"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33add59d68a6e568b119e48b561455e1c769850db0ee475399a807315421f922"
+checksum = "9a7cbbd4ad467251987c6e5b47d53b11a5a05add08f2447a9e2d70aef1e0d138"
 
 [[package]]
 name = "log"
