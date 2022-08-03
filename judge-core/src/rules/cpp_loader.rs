@@ -1,5 +1,5 @@
 use super::SeccompCtxLoader;
-use libseccomp::{error::SeccompError, get_syscall_from_name, ScmpAction, ScmpFilterContext};
+use libseccomp::{error::SeccompError, ScmpSyscall, ScmpAction, ScmpFilterContext};
 
 pub struct CppLoader {
     pub ctx: ScmpFilterContext,
@@ -10,7 +10,7 @@ impl SeccompCtxLoader for CppLoader {
         for syscall_name in get_white_list() {
             self.ctx.add_rule_exact(
                 ScmpAction::Allow,
-                get_syscall_from_name(syscall_name, None)?,
+                ScmpSyscall::from_name(syscall_name)?,
             )?;
         }
         Ok(())
