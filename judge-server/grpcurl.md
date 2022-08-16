@@ -1,0 +1,1 @@
+grpcurl localhost:50051 list
