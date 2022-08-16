@@ -8,5 +8,5 @@ edition = "2018"
 [dependencies]
 libc = "0.2"
 libseccomp = "0.2"
-nix = "0.24"
+nix = "0.25"
 log = "0.4"
