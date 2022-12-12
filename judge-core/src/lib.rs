@@ -5,3 +5,4 @@ pub mod result;
 pub mod rules;
 pub mod runner;
 pub mod utils;
+pub mod compiler;
