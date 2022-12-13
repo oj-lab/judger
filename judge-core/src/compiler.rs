@@ -1,10 +1,26 @@
-use std::process::{Command, Output};
+use std::{
+    process::{Command, Output},
+    str::FromStr,
+};
 
 use crate::error::JudgeCoreError;
 
+#[derive(Clone)]
 pub enum CompilerType {
     GccV9,
     GppV9,
+}
+
+impl FromStr for CompilerType {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "gcc" => Ok(Self::GccV9),
+            "g++" => Ok(Self::GccV9),
+            _ => Err(anyhow::anyhow!("Compiler not found: {}", s)),
+        }
+    }
 }
 
 pub struct CompileConfig {
@@ -20,9 +36,10 @@ pub struct CompileCommand {
 
 pub fn compile(config: &CompileConfig) -> Result<Output, JudgeCoreError> {
     let compile_command = get_command(&config);
-    Ok(Command::new(compile_command.program)
+    let output = Command::new(compile_command.program)
         .args(compile_command.args)
-        .output()?)
+        .output()?;
+    Ok(output)
 }
 
 fn get_command(config: &CompileConfig) -> CompileCommand {
@@ -48,7 +65,7 @@ fn get_command(config: &CompileConfig) -> CompileCommand {
 
 #[cfg(test)]
 pub mod compiler {
-    use super::{CompileConfig, compile};
+    use super::{compile, CompileConfig};
 
     #[test]
     fn test_compile() {
@@ -62,7 +79,7 @@ pub mod compiler {
                 if !out.status.success() {
                     panic!("{:?}", out)
                 }
-            },
+            }
             Err(e) => panic!("{:?}", e),
         }
     }
