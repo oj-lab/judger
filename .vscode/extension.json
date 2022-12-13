@@ -1,6 +1,7 @@
 {
     "recommendations": [
         "swellaby.rust-pack",
-        "lizebang.bash-extension-pack"
+        "lizebang.bash-extension-pack",
+        "zxh404.vscode-proto3"
     ]
 }
