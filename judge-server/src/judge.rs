@@ -1,10 +1,10 @@
 use std::{error::Error, io::ErrorKind, pin::Pin};
 
 use tokio::sync::mpsc;
-use tonic::{Streaming, Request, Response, Status};
-use tokio_stream::{wrappers::ReceiverStream, StreamExt, Stream};
+use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
+use tonic::{Request, Response, Status, Streaming};
 
-use crate::judger::{judger_server::Judger, JudgeRequest, JudgeReply};
+use crate::judger::{judger_server::Judger, JudgeReply, JudgeRequest};
 
 fn match_for_io_error(err_status: &Status) -> Option<&std::io::Error> {
     let mut err: &(dyn Error + 'static) = err_status;
@@ -45,7 +45,12 @@ impl Judger for MyJudger {
             while let Some(result) = in_stream.next().await {
                 match result {
                     Ok(_) => tx
-                        .send(Ok(JudgeReply {time_used: 0, memory_used: 0, result: "unsupported".to_string(), error: "unsupported".to_string() }))
+                        .send(Ok(JudgeReply {
+                            time_used: 0,
+                            memory_used: 0,
+                            result: "unsupported".to_string(),
+                            error: "unsupported".to_string(),
+                        }))
                         .await
                         .expect("working rx"),
                     Err(err) => {
@@ -71,8 +76,6 @@ impl Judger for MyJudger {
         // echo just write the same data that was received
         let out_stream = ReceiverStream::new(rx);
 
-        Ok(Response::new(
-            Box::pin(out_stream) as Self::JudgeStream,
-        ))
+        Ok(Response::new(Box::pin(out_stream) as Self::JudgeStream))
     }
 }

@@ -1,7 +1,7 @@
 use tonic::{transport::Server, Request, Response, Status};
 
 use judger::greeter_server::{Greeter, GreeterServer};
-use judger::judger_server::{JudgerServer};
+use judger::judger_server::JudgerServer;
 use judger::{HelloReply, HelloRequest};
 
 pub mod judger {
