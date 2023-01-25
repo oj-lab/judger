@@ -1,3 +1,6 @@
+pub mod killer;
+pub mod io;
+
 use libc::rusage;
 
 pub fn get_default_rusage() -> rusage {

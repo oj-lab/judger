@@ -1,6 +1,6 @@
 use crate::{
     error::JudgeCoreError,
-    killer::timeout_killer,
+    utils::killer::timeout_killer,
     runner::{run_process, RunnerConfig},
     utils::get_default_rusage,
 };

@@ -1,17 +1,19 @@
 use std::{thread::sleep, time::Duration};
 
-fn kill(pid: u32) {
-    unsafe {
-        libc::kill(pid as i32, libc::SIGKILL);
-    }
-
-    println!("killed process by killer")
-}
+use log::{error, info};
 
 pub fn timeout_killer(pid: u32, timeout: u64) {
     sleep(Duration::from_millis(timeout));
 
-    kill(pid);
+    unsafe {
+        let return_num = libc::kill(pid as i32, libc::SIGKILL);
+        if return_num != 0 {
+            error!("killer kill process:{} failed", pid);
+            // TODO: retry or do some other things
+        } else {
+            info!("killer successfully killed process:{}", pid);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -26,15 +28,6 @@ mod killer {
             .expect("Failed to execute child");
 
         child.id()
-    }
-
-    #[test]
-    fn test_kill() {
-        let pid = start_test_process();
-
-        kill(pid);
-
-        println!("killed pid:{}", pid);
     }
 
     #[test]
