@@ -3,7 +3,7 @@
 
 using namespace std;
 
-const int maxn=1e7+10;
+const int maxn=5e7+10;
 int a[maxn];
 
 int main() {

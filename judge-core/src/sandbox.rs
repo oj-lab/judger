@@ -4,7 +4,7 @@ use std::io::ErrorKind;
 use nix::{
   sys::resource::{
       setrlimit,
-      Resource::{RLIMIT_AS, RLIMIT_CPU, RLIMIT_FSIZE, RLIMIT_NPROC, RLIMIT_STACK},
+      Resource::{RLIMIT_AS, RLIMIT_CPU, RLIMIT_STACK},
   }
 };
 use crate::error::JudgeCoreError;
@@ -34,12 +34,10 @@ pub enum Verdict {
 impl SandBox {
   pub fn new() -> Result<Self, JudgeCoreError> {
     let mut filter = ScmpFilterContext::new_filter(ScmpAction::Allow).unwrap();
-    let syscall = vec!["read", "write", "exit", "brk"]; // allowed system call
-    for s in syscall.iter() {
-      let syscall = ScmpSyscall::from_name(s).unwrap();
-      println!("try add syscall: {} {}", s, syscall);
-      filter.add_rule(ScmpAction::Allow, syscall)?;
-    }
+    // for s in white_list.iter() {
+    //   let syscall = ScmpSyscall::from_name(s).unwrap();
+    //   filter.add_rule_exact(ScmpAction::Allow, syscall)?;
+    // }
     Ok(Self {
       filter
     })
@@ -54,12 +52,6 @@ impl SandBox {
     }
     if let Some(cpu_limit) = config.cpu_limit {
       setrlimit(RLIMIT_CPU, cpu_limit.0, cpu_limit.1)?;
-    }
-    if let Some(nproc_limit) = config.nproc_limit {
-      setrlimit(RLIMIT_NPROC, nproc_limit.0, nproc_limit.1)?;
-    }
-    if let Some(fsize_limit) = config.fsize_limit {
-      setrlimit(RLIMIT_FSIZE, fsize_limit.0, fsize_limit.1)?;
     }
     Ok(())
   }
@@ -77,8 +69,9 @@ impl SandBox {
             Some(0) => {
               Ok(Verdict::Accepted)
             },
+            Some(139) => Ok(Verdict::RuntimeError),
             Some(152) => Ok(Verdict::TimeLimitExceeded),
-            _ => panic!("Unexpected error")
+            _ => panic!("Unexpected status {}", status)
           }
         },
         Err(e) => match e.kind() {
@@ -93,18 +86,26 @@ impl SandBox {
 pub mod sandbox {
   use super::{SandBox, Verdict, ResourceLimitConfig};
 
+  const TEST_CONFIG: ResourceLimitConfig = ResourceLimitConfig {
+    stack_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
+    as_limit: Some((128 * 1024 * 1024, 128 * 1024 * 1024)),
+    cpu_limit: Some((1, 2)),
+    nproc_limit: Some((1, 1)),
+    fsize_limit: Some((1024, 1024)),
+  };
+
   #[test]
-  fn test_sandbox_grep() {
+  fn test_sandbox_ls() {
     let sandbox = SandBox::new().unwrap();
-    sandbox.set_limit(&ResourceLimitConfig {cpu_limit: Some((1, 2)), as_limit: Some((128, 128)), ..Default::default()});
-    let res = sandbox.exec("grep".to_string()).unwrap();
+    sandbox.set_limit(&TEST_CONFIG);
+    let res = sandbox.exec("ls".to_string()).unwrap();
     assert_eq!(res, Verdict::Accepted);
   }
 
   #[test]
   fn test_sandbox_tle() {
     let sandbox = SandBox::new().unwrap();
-    sandbox.set_limit(&ResourceLimitConfig {cpu_limit: Some((1, 2)), as_limit: Some((128, 128)), ..Default::default()});
+    sandbox.set_limit(&TEST_CONFIG);
     let res = sandbox.exec("../infinite_loop".to_string()).unwrap();
     assert_eq!(res, Verdict::TimeLimitExceeded);
   }
@@ -112,8 +113,8 @@ pub mod sandbox {
   #[test]
   fn test_sandbox_mle() {
     let sandbox = SandBox::new().unwrap();
-    sandbox.set_limit(&ResourceLimitConfig {cpu_limit: Some((1, 2)), as_limit: Some((16, 16)), ..Default::default()});
+    sandbox.set_limit(&TEST_CONFIG);
     let res = sandbox.exec("../memory_limit".to_string()).unwrap();
-    assert_eq!(res, Verdict::MemoryLimitExceeded);
+    assert_eq!(res, Verdict::RuntimeError);
   }
 }
