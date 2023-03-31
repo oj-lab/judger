@@ -2,11 +2,13 @@ use std::{
     process::Command,
     str::FromStr,
 };
+use crate::utils::TemplateCommand;
 
 #[derive(Clone)]
 pub enum Language {
     Rust,
     Cpp,
+    Python,
     // add other supported languages here
 }
 
@@ -17,6 +19,7 @@ impl FromStr for Language {
         match s {
             "rust" => Ok(Self::Rust),
             "cpp" => Ok(Self::Cpp),
+            "python" => Ok(Self::Python),
             _ => Err(anyhow::anyhow!("Compiler not found: {}", s)),
         }
     }
@@ -25,27 +28,37 @@ impl FromStr for Language {
 #[derive(Clone)]
 pub struct Compiler {
     language: Language,
-    compiler_name: String,
+    command: TemplateCommand,
     compiler_args: Vec<String>,
 }
 
 impl Compiler {
     pub fn new(language: Language, compiler_args: Vec<String>) -> Self {
         let compiler_name = match language {
-            Language::Rust => "rustc".to_string(),
-            Language::Cpp => "g++".to_string(),
+            Language::Rust => "rustc {src_path} -o {target_path}".to_string(),
+            Language::Cpp => "g++ {src_path} -o {target_path}".to_string(),
+            Language::Python => panic!("Cannot be compiled"),
             // add other supported language
         };
+        let template_args = match language {
+            Language::Rust => vec!["{src_path}".to_string(), "{target_path}".to_string()],
+            Language::Cpp => vec!["{src_path}".to_string(), "{target_path}".to_string()],
+            Language::Python => panic!("Cannot be compiled"),
+            // add other supported language
+        };
+        let command = TemplateCommand::new(compiler_name.clone(), template_args);
         Self {
             language,
-            compiler_name,
+            command,
             compiler_args
         }
     }
 
     pub fn compile(&self, src_path: &str, target_path: &str) -> Result<String, String> {
-        let output = Command::new(&self.compiler_name)
-            .args(self.compiler_args.iter().chain(["-o".to_string(), target_path.clone().to_string(), src_path.to_string()].iter().collect::<Vec<&String>>()))
+        let output = Command::new("sh")
+            .arg("-c")
+            .arg(&self.command.get_command(vec![src_path.to_string(), target_path.to_string()]))
+            .args(self.compiler_args.iter())
             .output()
             .map_err(|e| format!("Failed to execute compiler: {}", e))?;
 
