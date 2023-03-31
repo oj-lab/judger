@@ -1,8 +1,22 @@
 use libseccomp::{ScmpFilterContext, ScmpSyscall, ScmpAction};
 use std::process::Command;
 use std::io::ErrorKind;
-use libc::{setrlimit, rlimit};
+use nix::{
+  sys::resource::{
+      setrlimit,
+      Resource::{RLIMIT_AS, RLIMIT_CPU, RLIMIT_FSIZE, RLIMIT_NPROC, RLIMIT_STACK},
+  }
+};
 use crate::error::JudgeCoreError;
+
+#[derive(Default)]
+pub struct ResourceLimitConfig {
+    pub stack_limit: Option<(u64, u64)>,
+    pub as_limit: Option<(u64, u64)>,
+    pub cpu_limit: Option<(u64, u64)>,
+    pub nproc_limit: Option<(u64, u64)>,
+    pub fsize_limit: Option<(u64, u64)>,
+}
 
 pub struct SandBox {
     filter: ScmpFilterContext,
@@ -20,9 +34,10 @@ pub enum Verdict {
 impl SandBox {
   pub fn new() -> Result<Self, JudgeCoreError> {
     let mut filter = ScmpFilterContext::new_filter(ScmpAction::Allow).unwrap();
-    let syscall = ["read", "write", "exit", "brk"]; // allowed system call
+    let syscall = vec!["read", "write", "exit", "brk"]; // allowed system call
     for s in syscall.iter() {
       let syscall = ScmpSyscall::from_name(s).unwrap();
+      println!("try add syscall: {} {}", s, syscall);
       filter.add_rule(ScmpAction::Allow, syscall)?;
     }
     Ok(Self {
@@ -30,23 +45,23 @@ impl SandBox {
     })
   }
 
-  pub fn set_limit(&self, time_limit: u64, memory_limit: u64) {
-    let time_limit_sec = time_limit / 1000;
-    let memory_limit_bytes = memory_limit * 1024 * 1024;
-    let cpu_limit = rlimit {
-      rlim_cur: time_limit_sec,
-      rlim_max: std::u64::MAX,
-    };
-    unsafe {
-        setrlimit(libc::RLIMIT_CPU, &cpu_limit);
+  pub fn set_limit(&self, config: &ResourceLimitConfig) -> Result<(), JudgeCoreError> {
+    if let Some(stack_limit) = config.stack_limit {
+      setrlimit(RLIMIT_STACK, stack_limit.0, stack_limit.1)?;
     }
-    let mem_limit = rlimit {
-      rlim_cur: memory_limit_bytes,
-      rlim_max: std::u64::MAX,
-    };
-    unsafe {
-        setrlimit(libc::RLIMIT_AS, &mem_limit);
+    if let Some(as_limit) = config.as_limit {
+      setrlimit(RLIMIT_AS, as_limit.0, as_limit.1)?;
     }
+    if let Some(cpu_limit) = config.cpu_limit {
+      setrlimit(RLIMIT_CPU, cpu_limit.0, cpu_limit.1)?;
+    }
+    if let Some(nproc_limit) = config.nproc_limit {
+      setrlimit(RLIMIT_NPROC, nproc_limit.0, nproc_limit.1)?;
+    }
+    if let Some(fsize_limit) = config.fsize_limit {
+      setrlimit(RLIMIT_FSIZE, fsize_limit.0, fsize_limit.1)?;
+    }
+    Ok(())
   }
 
   pub fn exec(&self, command: String) -> Result<Verdict, JudgeCoreError> {
@@ -76,12 +91,12 @@ impl SandBox {
 
 #[cfg(test)]
 pub mod sandbox {
-  use super::{SandBox, Verdict};
+  use super::{SandBox, Verdict, ResourceLimitConfig};
 
   #[test]
   fn test_sandbox_grep() {
     let sandbox = SandBox::new().unwrap();
-    sandbox.set_limit(1000, 128);
+    sandbox.set_limit(&ResourceLimitConfig {cpu_limit: Some((1, 2)), as_limit: Some((128, 128)), ..Default::default()});
     let res = sandbox.exec("grep".to_string()).unwrap();
     assert_eq!(res, Verdict::Accepted);
   }
@@ -89,7 +104,7 @@ pub mod sandbox {
   #[test]
   fn test_sandbox_tle() {
     let sandbox = SandBox::new().unwrap();
-    sandbox.set_limit(1000, 128);
+    sandbox.set_limit(&ResourceLimitConfig {cpu_limit: Some((1, 2)), as_limit: Some((128, 128)), ..Default::default()});
     let res = sandbox.exec("../infinite_loop".to_string()).unwrap();
     assert_eq!(res, Verdict::TimeLimitExceeded);
   }
@@ -97,7 +112,7 @@ pub mod sandbox {
   #[test]
   fn test_sandbox_mle() {
     let sandbox = SandBox::new().unwrap();
-    sandbox.set_limit(1000, 16);
+    sandbox.set_limit(&ResourceLimitConfig {cpu_limit: Some((1, 2)), as_limit: Some((16, 16)), ..Default::default()});
     let res = sandbox.exec("../memory_limit".to_string()).unwrap();
     assert_eq!(res, Verdict::MemoryLimitExceeded);
   }

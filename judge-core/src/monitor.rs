@@ -71,7 +71,7 @@ pub fn run_judge(
 pub mod monitor {
     use super::*;
     use crate::result::infer_result;
-    use crate::runner::ResourceLimitConfig;
+    use crate::sandbox::ResourceLimitConfig;
 
     #[test]
     fn test_run_judge() {

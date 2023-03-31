@@ -1,6 +1,6 @@
 use crate::{
     error::JudgeCoreError,
-    rules::{cpp_loader::CppLoader, get_default_kill_context, load_rules},
+    rules::{cpp_loader::CppLoader, get_default_kill_context, load_rules}, sandbox::{SandBox, ResourceLimitConfig},
 };
 use nix::{
     errno::Errno,
@@ -21,6 +21,24 @@ pub struct RunnerConfig {
     pub input_file_path: String,
     pub output_file_path: String,
     pub rlimit_config: ResourceLimitConfig,
+}
+
+pub struct Runner {
+    sandbox: SandBox,
+    run_command: String,
+}
+
+impl Runner {
+    pub fn new(run_command: String) -> Result<Self, JudgeCoreError> {
+        let sandbox = SandBox::new()?;
+        Ok(Self { sandbox, run_command })
+    }
+
+    pub fn set_limit(&self, config: &ResourceLimitConfig) {
+        self.sandbox.set_limit(config);
+    }
+
+
 }
 
 pub fn run_process(config: &RunnerConfig) -> Result<(), JudgeCoreError> {
@@ -53,15 +71,6 @@ pub fn run_process(config: &RunnerConfig) -> Result<(), JudgeCoreError> {
     .unwrap();
 
     Ok(())
-}
-
-#[derive(Default)]
-pub struct ResourceLimitConfig {
-    pub stack_limit: Option<(u64, u64)>,
-    pub as_limit: Option<(u64, u64)>,
-    pub cpu_limit: Option<(u64, u64)>,
-    pub nproc_limit: Option<(u64, u64)>,
-    pub fsize_limit: Option<(u64, u64)>,
 }
 
 fn set_resource_limit(config: &ResourceLimitConfig) -> Result<(), Errno> {
