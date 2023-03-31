@@ -16,7 +16,7 @@ enum Commands {
         #[arg(short, long)]
         target: String,
         #[arg(short, long)]
-        language: Language
+        language: Language,
     },
 }
 

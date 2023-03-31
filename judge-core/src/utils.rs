@@ -3,14 +3,14 @@ use libc::rusage;
 #[derive(Clone)]
 pub struct TemplateCommand {
     run_template: String,
-    template_args: Vec<String>
+    template_args: Vec<String>,
 }
 
 impl TemplateCommand {
     pub fn new(run_template: String, template_args: Vec<String>) -> Self {
         Self {
             run_template,
-            template_args
+            template_args,
         }
     }
 

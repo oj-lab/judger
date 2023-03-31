@@ -1,8 +1,5 @@
-use std::{
-    process::Command,
-    str::FromStr,
-};
 use crate::utils::TemplateCommand;
+use std::{process::Command, str::FromStr};
 
 #[derive(Clone)]
 pub enum Language {
@@ -50,14 +47,18 @@ impl Compiler {
         Self {
             language,
             command,
-            compiler_args
+            compiler_args,
         }
     }
 
     pub fn compile(&self, src_path: &str, target_path: &str) -> Result<String, String> {
         let output = Command::new("sh")
             .arg("-c")
-            .arg(&self.command.get_command(vec![src_path.to_string(), target_path.to_string()]))
+            .arg(
+                &self
+                    .command
+                    .get_command(vec![src_path.to_string(), target_path.to_string()]),
+            )
             .args(self.compiler_args.iter())
             .output()
             .map_err(|e| format!("Failed to execute compiler: {}", e))?;
@@ -65,13 +66,13 @@ impl Compiler {
         if output.status.success() {
             let compile_output = String::from_utf8_lossy(&output.stdout).to_string();
             Ok(compile_output)
-        } else { // define error
+        } else {
+            // define error
             let error_output = String::from_utf8_lossy(&output.stderr).to_string();
             Err(error_output)
         }
     }
 }
-
 
 #[cfg(test)]
 pub mod compiler {
