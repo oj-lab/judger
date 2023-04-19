@@ -1,4 +1,4 @@
-use crate::{sandbox::RawRunResultInfo, monitor::RunnerConfig};
+use crate::{monitor::RunnerConfig, sandbox::RawRunResultInfo};
 use std::collections::HashSet;
 
 #[derive(Debug)]

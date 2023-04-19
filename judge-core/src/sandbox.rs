@@ -1,19 +1,16 @@
-use libseccomp::{ScmpAction, ScmpFilterContext, ScmpSyscall};
-use crate::{error::JudgeCoreError, killer::timeout_killer, utils::get_default_rusage};
+use crate::{error::JudgeCoreError, utils::get_default_rusage};
 use libc::{c_int, rusage, wait4, WEXITSTATUS, WSTOPPED, WTERMSIG};
+use libseccomp::{ScmpAction, ScmpFilterContext, ScmpSyscall};
 use nix::sys::resource::{
     setrlimit,
     Resource::{RLIMIT_AS, RLIMIT_CPU, RLIMIT_STACK},
 };
 use nix::unistd::{dup2, execve};
+use nix::unistd::{fork, write, ForkResult};
 use std::ffi::CString;
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
-use nix::unistd::{fork, write, ForkResult};
-use std::{
-    thread,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 #[derive(Default)]
 pub struct ResourceLimitConfig {
@@ -40,34 +37,39 @@ pub struct SandBox {
 }
 
 impl SandBox {
-    pub fn new() -> Result<Self, JudgeCoreError> {
-        let mut filter = ScmpFilterContext::new_filter(ScmpAction::KillProcess).unwrap();
-        let white_list: Vec<&str> = vec![
-            "read",
-            "fstat",
-            "mmap",
-            "mprotect",
-            "munmap",
-            "uname",
-            "arch_prctl",
-            "brk",
-            "access",
-            "exit_group",
-            "close",
-            "readlink",
-            "sysinfo",
-            "write",
-            "writev",
-            "lseek",
-            "clock_gettime",
-            "pread64",
-            "execve",
-            "open",
-            "openat",
-        ];
-        for s in white_list.iter() {
-            let syscall = ScmpSyscall::from_name(s)?;
-            filter.add_rule_exact(ScmpAction::Allow, syscall)?;
+    pub fn new(restricted: bool) -> Result<Self, JudgeCoreError> {
+        let mut filter = match restricted {
+            true => ScmpFilterContext::new_filter(ScmpAction::KillProcess).unwrap(),
+            false => ScmpFilterContext::new_filter(ScmpAction::Allow).unwrap(),
+        };
+        if restricted {
+            let white_list: Vec<&str> = vec![
+                "read",
+                "fstat",
+                "mmap",
+                "mprotect",
+                "munmap",
+                "uname",
+                "arch_prctl",
+                "brk",
+                "access",
+                "exit_group",
+                "close",
+                "readlink",
+                "sysinfo",
+                "write",
+                "writev",
+                "lseek",
+                "clock_gettime",
+                "pread64",
+                "execve",
+                "open",
+                "openat",
+            ];
+            for s in white_list.iter() {
+                let syscall = ScmpSyscall::from_name(s)?;
+                filter.add_rule_exact(ScmpAction::Allow, syscall)?;
+            }
         }
         let stdin_raw_fd = io::stdin().as_raw_fd();
         let stdout_raw_fd = io::stdout().as_raw_fd();
@@ -96,7 +98,34 @@ impl SandBox {
         Ok(())
     }
 
-    pub fn spawn(&self, runner_cmd: &String, rlimit_config: &ResourceLimitConfig, input_raw_fd: RawFd, output_raw_fd: RawFd) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
+    pub fn wait(
+        &self,
+        now: Instant,
+        child: i32,
+    ) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
+        let mut status: c_int = 0;
+        let mut usage: rusage = get_default_rusage();
+        unsafe {
+            wait4(child, &mut status, WSTOPPED, &mut usage);
+        }
+
+        println!("Detected process exit");
+
+        Ok(Some(RawRunResultInfo {
+            exit_status: status,
+            exit_signal: WTERMSIG(status),
+            exit_code: WEXITSTATUS(status),
+            real_time_cost: now.elapsed(),
+            resource_usage: usage,
+        }))
+    }
+
+    pub fn spawn(
+        &self,
+        runner_cmd: &String,
+        runner_args: &Vec<&String>,
+        rlimit_config: &ResourceLimitConfig,
+    ) -> Result<Option<(Instant, i32)>, JudgeCoreError> {
         let now = Instant::now();
 
         match unsafe { fork() } {
@@ -105,25 +134,44 @@ impl SandBox {
                     "Continuing execution in parent process, new child has pid: {}",
                     child
                 );
-    
-                thread::spawn(move || timeout_killer(child.as_raw() as u32, 5000));
-                println!("timeout_killer has been set");
-    
-                let mut status: c_int = 0;
-                let mut usage: rusage = get_default_rusage();
-                unsafe {
-                    wait4(child.as_raw() as i32, &mut status, WSTOPPED, &mut usage);
-                }
-    
-                println!("Detected process exit");
-    
-                Ok(Some(RawRunResultInfo {
-                    exit_status: status,
-                    exit_signal: WTERMSIG(status),
-                    exit_code: WEXITSTATUS(status),
-                    real_time_cost: now.elapsed(),
-                    resource_usage: usage,
-                }))
+
+                Ok(Some((now, child.as_raw())))
+            }
+            Ok(ForkResult::Child) => {
+                // Unsafe to use `println!` (or `unwrap`) here. See Safety.
+                write(libc::STDOUT_FILENO, "I'm a new child process\n".as_bytes()).ok();
+
+                self.set_limit(&rlimit_config)?;
+                self.exec(&runner_cmd, runner_args).unwrap();
+
+                Ok(None)
+            }
+            Err(_) => {
+                println!("Fork failed");
+
+                Ok(None)
+            }
+        }
+    }
+
+    pub fn spawn_with_io(
+        &self,
+        runner_cmd: &String,
+        runner_args: &Vec<&String>,
+        rlimit_config: &ResourceLimitConfig,
+        input_raw_fd: RawFd,
+        output_raw_fd: RawFd,
+    ) -> Result<Option<(Instant, i32)>, JudgeCoreError> {
+        let now = Instant::now();
+
+        match unsafe { fork() } {
+            Ok(ForkResult::Parent { child, .. }) => {
+                println!(
+                    "Continuing execution in parent process, new child has pid: {}",
+                    child
+                );
+
+                Ok(Some((now, child.as_raw())))
             }
             Ok(ForkResult::Child) => {
                 // Unsafe to use `println!` (or `unwrap`) here. See Safety.
@@ -131,24 +179,27 @@ impl SandBox {
 
                 self.set_io(input_raw_fd, output_raw_fd);
                 self.set_limit(&rlimit_config)?;
-                self.exec(&runner_cmd).unwrap();
-    
+                self.exec(&runner_cmd, runner_args).unwrap();
+
                 Ok(None)
             }
             Err(_) => {
                 println!("Fork failed");
-    
+
                 Ok(None)
             }
         }
     }
-    
-    pub fn exec(&self, command: &str) -> Result<(), JudgeCoreError> {
+
+    pub fn exec(&self, command: &str, args: &Vec<&String>) -> Result<(), JudgeCoreError> {
         self.filter.load()?;
-        println!("start to execve");
+        let c_args = args
+            .iter()
+            .map(|s| CString::new(s.as_bytes()))
+            .collect::<Result<Vec<_>, _>>()?;
         execve(
             &CString::new(command)?,
-            &[CString::new("")?],
+            &c_args.as_slice(),
             &[CString::new("")?],
         )
         .unwrap();
