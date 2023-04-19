@@ -1,9 +1,9 @@
-use crate::{monitor::RawJudgeResultInfo, monitor::RunnerConfig};
+use crate::{sandbox::RawRunResultInfo, monitor::RunnerConfig};
 use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct JudgeResultInfo {
-    pub raw: RawJudgeResultInfo,
+    pub raw: RawRunResultInfo,
     pub problems: HashSet<JudgeProblemType>,
 }
 
@@ -16,7 +16,7 @@ pub enum JudgeProblemType {
     CpuTimeLimitExceeded,
 }
 
-pub fn infer_result(raw_info: RawJudgeResultInfo, _runner_config: RunnerConfig) -> JudgeResultInfo {
+pub fn infer_result(raw_info: RawRunResultInfo, _runner_config: RunnerConfig) -> JudgeResultInfo {
     let mut problems = HashSet::new();
 
     // TODO: Fullfill problem infer

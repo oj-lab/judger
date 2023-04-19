@@ -4,6 +4,5 @@ pub mod killer;
 pub mod monitor;
 pub mod result;
 pub mod rules;
-pub mod runner;
 pub mod sandbox;
 pub mod utils;
