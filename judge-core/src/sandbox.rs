@@ -4,8 +4,10 @@ use nix::sys::resource::{
     setrlimit,
     Resource::{RLIMIT_AS, RLIMIT_CPU, RLIMIT_STACK},
 };
-use std::io::ErrorKind;
-use std::process::Command;
+use nix::unistd::{dup2, execve};
+use std::ffi::CString;
+use std::io;
+use std::os::unix::io::{AsRawFd, RawFd};
 
 #[derive(Default)]
 pub struct ResourceLimitConfig {
@@ -18,26 +20,52 @@ pub struct ResourceLimitConfig {
 
 pub struct SandBox {
     filter: ScmpFilterContext,
-}
-
-#[derive(PartialEq, Debug)]
-pub enum Verdict {
-    Accepted,
-    WrongAnswer,
-    TimeLimitExceeded,
-    MemoryLimitExceeded,
-    RuntimeError,
+    stdin_raw_fd: RawFd,
+    stdout_raw_fd: RawFd,
 }
 
 impl SandBox {
     pub fn new() -> Result<Self, JudgeCoreError> {
-        let mut filter = ScmpFilterContext::new_filter(ScmpAction::Allow).unwrap();
-        let white_list: Vec<&str> = vec![];
+        let mut filter = ScmpFilterContext::new_filter(ScmpAction::KillProcess).unwrap();
+        let white_list: Vec<&str> = vec![
+            "read",
+            "fstat",
+            "mmap",
+            "mprotect",
+            "munmap",
+            "uname",
+            "arch_prctl",
+            "brk",
+            "access",
+            "exit_group",
+            "close",
+            "readlink",
+            "sysinfo",
+            "write",
+            "writev",
+            "lseek",
+            "clock_gettime",
+            "pread64",
+            "execve",
+            "open",
+            "openat",
+        ];
         for s in white_list.iter() {
-            let syscall = ScmpSyscall::from_name(s).unwrap();
+            let syscall = ScmpSyscall::from_name(s)?;
             filter.add_rule_exact(ScmpAction::Allow, syscall)?;
         }
-        Ok(Self { filter })
+        let stdin_raw_fd = io::stdin().as_raw_fd();
+        let stdout_raw_fd = io::stdout().as_raw_fd();
+        Ok(Self {
+            filter,
+            stdin_raw_fd,
+            stdout_raw_fd,
+        })
+    }
+
+    pub fn set_io(&self, input_raw_fd: RawFd, output_raw_fd: RawFd) {
+        dup2(input_raw_fd, self.stdin_raw_fd).unwrap();
+        dup2(output_raw_fd, self.stdout_raw_fd).unwrap();
     }
 
     pub fn set_limit(&self, config: &ResourceLimitConfig) -> Result<(), JudgeCoreError> {
@@ -53,64 +81,15 @@ impl SandBox {
         Ok(())
     }
 
-    pub fn exec(&self, command: &mut Command) -> Result<Verdict, JudgeCoreError> {
+    pub fn exec(&self, command: &str) -> Result<(), JudgeCoreError> {
         self.filter.load()?;
-        match command.spawn() {
-            Ok(res) => {
-                let output = res.wait_with_output().unwrap();
-                let status = output.status;
-                match status.code() {
-                    Some(0) => Ok(Verdict::Accepted),
-                    Some(139) => Ok(Verdict::RuntimeError),
-                    Some(152) => Ok(Verdict::TimeLimitExceeded),
-                    _ => panic!("Unexpected status {}", status),
-                }
-            }
-            Err(e) => match e.kind() {
-                ErrorKind::OutOfMemory => Ok(Verdict::MemoryLimitExceeded),
-                _ => Err(JudgeCoreError::from(e)),
-            },
-        }
-    }
-}
-
-#[cfg(test)]
-pub mod sandbox {
-    use super::{ResourceLimitConfig, SandBox, Verdict};
-    use std::process::Command;
-
-    const TEST_CONFIG: ResourceLimitConfig = ResourceLimitConfig {
-        stack_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
-        as_limit: Some((128 * 1024 * 1024, 128 * 1024 * 1024)),
-        cpu_limit: Some((1, 2)),
-        nproc_limit: Some((1, 1)),
-        fsize_limit: Some((1024, 1024)),
-    };
-
-    #[test]
-    fn test_sandbox_ls() {
-        let sandbox = SandBox::new().unwrap();
-        sandbox.set_limit(&TEST_CONFIG);
-        let mut command = Command::new("ls");
-        let res = sandbox.exec(&mut command).unwrap();
-        assert_eq!(res, Verdict::Accepted);
-    }
-
-    #[test]
-    fn test_sandbox_tle() {
-        let sandbox = SandBox::new().unwrap();
-        sandbox.set_limit(&TEST_CONFIG);
-        let mut command = Command::new("../infinite_loop");
-        let res = sandbox.exec(&mut command).unwrap();
-        assert_eq!(res, Verdict::TimeLimitExceeded);
-    }
-
-    #[test]
-    fn test_sandbox_mle() {
-        let sandbox = SandBox::new().unwrap();
-        sandbox.set_limit(&TEST_CONFIG);
-        let mut command = Command::new("../memory_limit");
-        let res = sandbox.exec(&mut command).unwrap();
-        assert_eq!(res, Verdict::RuntimeError);
+        println!("start to execve");
+        execve(
+            &CString::new(command)?,
+            &[CString::new("")?],
+            &[CString::new("")?],
+        )
+        .unwrap();
+        Ok(())
     }
 }

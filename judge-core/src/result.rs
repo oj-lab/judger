@@ -1,4 +1,4 @@
-use crate::{monitor::RawJudgeResultInfo, runner::RunnerConfig};
+use crate::{monitor::RawJudgeResultInfo, monitor::RunnerConfig};
 use std::collections::HashSet;
 
 #[derive(Debug)]
