@@ -34,6 +34,8 @@ pub struct SandBox {
     filter: ScmpFilterContext,
     stdin_raw_fd: RawFd,
     stdout_raw_fd: RawFd,
+    child_exit_fd: RawFd,
+    exit_signal: u8,
 }
 
 impl SandBox {
@@ -73,16 +75,25 @@ impl SandBox {
         }
         let stdin_raw_fd = io::stdin().as_raw_fd();
         let stdout_raw_fd = io::stdout().as_raw_fd();
+        let child_exit_fd = -1;
+        let exit_signal = 0;
         Ok(Self {
             filter,
             stdin_raw_fd,
             stdout_raw_fd,
+            child_exit_fd,
+            exit_signal
         })
     }
 
     pub fn set_io(&self, input_raw_fd: RawFd, output_raw_fd: RawFd) {
         dup2(input_raw_fd, self.stdin_raw_fd).unwrap();
         dup2(output_raw_fd, self.stdout_raw_fd).unwrap();
+    }
+
+    pub fn set_exit_fd(&mut self, exit_fd: RawFd, exit_signal: u8) {
+        self.child_exit_fd = exit_fd;
+        self.exit_signal = exit_signal;
     }
 
     pub fn set_limit(&self, config: &ResourceLimitConfig) -> Result<(), JudgeCoreError> {
@@ -110,7 +121,12 @@ impl SandBox {
         }
 
         println!("Detected process exit");
-
+        
+        if self.child_exit_fd != -1 {
+            let buf = [self.exit_signal];
+            write(self.child_exit_fd, &buf).unwrap();
+        }
+        
         Ok(Some(RawRunResultInfo {
             exit_status: status,
             exit_signal: WTERMSIG(status),
