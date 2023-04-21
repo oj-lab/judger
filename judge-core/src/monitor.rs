@@ -27,40 +27,39 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<RawRunResultInfo
         .unwrap();
     let input_raw_fd: RawFd = input_file.as_raw_fd();
     let output_raw_fd: RawFd = output_file.as_raw_fd();
-    match user_process.spawn_with_io(
+    let user_spawn = user_process.spawn_with_io(
         &runner_config.program_path,
         &vec![&String::from("")],
         &runner_config.rlimit_config,
         input_raw_fd,
         output_raw_fd,
-    ) {
-        Ok(Some((user_begin, user_pid))) => {
-            let user_result = user_process.wait(user_begin, user_pid)?;
-
-            let checker_process = SandBox::new(false)?;
-            let first_args = String::from("");
-            let checker_args = vec![
-                &first_args,
-                &runner_config.input_file_path,
-                &runner_config.output_file_path,
-                &runner_config.answer_file_path,
-            ];
-            match checker_process.spawn(
-                &runner_config.checker_path,
-                &checker_args,
-                &runner_config.rlimit_config,
-            ) {
-                Ok(Some((check_begin, checker_pid))) => {
-                    let checker_result = checker_process.wait(check_begin, checker_pid)?;
-                    Ok(checker_result)
-                }
-                Ok(None) => Ok(None),
-                Err(e) => Err(e),
-            }
-        }
-        Ok(None) => Ok(None),
-        Err(e) => Err(e),
+    )?;
+    if user_spawn.is_none() {
+        return Ok(None);
     }
+    let (user_begin, user_pid) = user_spawn.unwrap();
+    let user_result = user_process.wait(user_begin, user_pid)?;
+
+    let checker_process = SandBox::new(false)?;
+    let first_args = String::from("");
+    let checker_args = vec![
+        &first_args,
+        &runner_config.input_file_path,
+        &runner_config.output_file_path,
+        &runner_config.answer_file_path,
+    ];
+
+    let checker_spawn = checker_process.spawn(
+        &runner_config.checker_path,
+        &checker_args,
+        &runner_config.rlimit_config,
+    )?;
+    if checker_spawn.is_none() {
+        return Ok(None);
+    }
+    let (check_begin, checker_pid) = checker_spawn.unwrap();
+    let checker_result = checker_process.wait(check_begin, checker_pid)?;
+    Ok(checker_result)
 }
 
 fn set_non_blocking(fd: RawFd) {

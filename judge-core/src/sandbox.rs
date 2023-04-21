@@ -82,7 +82,7 @@ impl SandBox {
             stdin_raw_fd,
             stdout_raw_fd,
             child_exit_fd,
-            exit_signal
+            exit_signal,
         })
     }
 
@@ -121,12 +121,12 @@ impl SandBox {
         }
 
         println!("Detected process exit");
-        
+
         if self.child_exit_fd != -1 {
             let buf = [self.exit_signal];
             write(self.child_exit_fd, &buf).unwrap();
         }
-        
+
         Ok(Some(RawRunResultInfo {
             exit_status: status,
             exit_signal: WTERMSIG(status),
