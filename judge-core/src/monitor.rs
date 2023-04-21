@@ -1,10 +1,12 @@
 use crate::error::JudgeCoreError;
 use crate::sandbox::{RawRunResultInfo, ResourceLimitConfig, SandBox};
+use nix::fcntl::{fcntl, FcntlArg, OFlag};
+use nix::sys::epoll::{
+    epoll_create1, epoll_ctl, epoll_wait, EpollCreateFlags, EpollEvent, EpollFlags, EpollOp,
+};
+use nix::unistd::pipe;
 use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
-use nix::sys::epoll::{epoll_create1, epoll_ctl, epoll_wait, EpollOp, EpollFlags, EpollEvent, EpollCreateFlags};
-use nix::unistd::pipe;
-use nix::fcntl::{fcntl, FcntlArg, OFlag};
 
 pub struct RunnerConfig {
     pub program_path: String,
@@ -65,7 +67,10 @@ fn set_non_blocking(fd: RawFd) {
     fcntl(fd, FcntlArg::F_SETFL(OFlag::O_NONBLOCK)).expect("failed to set fd to non blocking");
 }
 
-pub fn run_interact(runner_config: &RunnerConfig, interactor_path: &String) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
+pub fn run_interact(
+    runner_config: &RunnerConfig,
+    interactor_path: &String,
+) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
     let user_process = SandBox::new(true)?;
     let interact_process = SandBox::new(false)?;
 
@@ -87,60 +92,59 @@ pub fn run_interact(runner_config: &RunnerConfig, interactor_path: &String) -> R
     // }
 
     let (read_end, write_end) = create_pipe();
-    match user_process.spawn_with_io(
+    let user_spawn = user_process.spawn_with_io(
         &runner_config.program_path,
         &vec![&String::from("")],
         &runner_config.rlimit_config,
         read_end,
-        proxy_write_fd
-    ) {
-        Ok(Some((user_begin, user_pid))) => {
-            let first_args = String::from("");
-            let interact_args = vec![
-                &first_args,
-                &runner_config.input_file_path,
-                &runner_config.output_file_path,
-                &runner_config.answer_file_path,
-            ];
-            match interact_process.spawn_with_io(
-                interactor_path,
-                &interact_args,
-                &runner_config.rlimit_config,
-                proxy_read_fd,
-                write_end
-            ) {
-                Ok(Some((interact_begin, interact_pid))) => {
-                    let user_result = user_process.wait(user_begin, user_pid)?;
-                    let interact_result = interact_process.wait(interact_begin, interact_pid)?;
-                    let checker_process = SandBox::new(false)?;
-                    // the checker will compare the output of interactor with answer file
-                    let checker_args = vec![
-                        &first_args,
-                        &runner_config.input_file_path,
-                        &runner_config.output_file_path,
-                        &runner_config.answer_file_path,
-                    ];
-                    match checker_process.spawn(
-                        &runner_config.checker_path,
-                        &checker_args,
-                        &runner_config.rlimit_config,
-                    ) {
-                        Ok(Some((check_begin, checker_pid))) => {
-                            let checker_result = checker_process.wait(check_begin, checker_pid)?;
-                            Ok(checker_result)
-                        }
-                        Ok(None) => Ok(None),
-                        Err(e) => Err(e),
-                    }
-                }
-                Ok(None) => Ok(None),
-                Err(e) => Err(e),
-            }
-        }
-        Ok(None) => Ok(None),
-        Err(e) => Err(e),
-    }
+        proxy_write_fd,
+    )?;
 
+    let first_args = String::from("");
+    let interact_args = vec![
+        &first_args,
+        &runner_config.input_file_path,
+        &runner_config.output_file_path,
+        &runner_config.answer_file_path,
+    ];
+
+    let interact_spawn = interact_process.spawn_with_io(
+        interactor_path,
+        &interact_args,
+        &runner_config.rlimit_config,
+        proxy_read_fd,
+        write_end,
+    )?;
+
+    if user_spawn.is_none() || interact_spawn.is_none() {
+        // ??? Should we return an error here?
+        return Ok(None);
+    }
+    let (user_begin, user_pid) = user_spawn.unwrap();
+    let (interact_begin, interact_pid) = interact_spawn.unwrap();
+    let _user_result = user_process.wait(user_begin, user_pid)?;
+    let _interact_result = interact_process.wait(interact_begin, interact_pid)?;
+
+    let checker_process = SandBox::new(false)?;
+    // the checker will compare the output of interactor with answer file
+    let checker_args = vec![
+        &first_args,
+        &runner_config.input_file_path,
+        &runner_config.output_file_path,
+        &runner_config.answer_file_path,
+    ];
+    let checker_spawn = checker_process.spawn(
+        &runner_config.checker_path,
+        &checker_args,
+        &runner_config.rlimit_config,
+    )?;
+
+    if checker_spawn.is_none() {
+        return Ok(None);
+    }
+    let (checker_begin, checker_pid) = checker_spawn.unwrap();
+    let checker_result = checker_process.wait(checker_begin, checker_pid)?;
+    Ok(checker_result)
 }
 
 #[cfg(test)]
@@ -180,8 +184,12 @@ pub mod monitor {
             answer_file_path: "../tmp/ans".to_owned(),
             rlimit_config: TEST_CONFIG,
         };
-        let result = run_interact(&runner_config, &String::from("../test-program/checkers/interactor-a-plus-b")).expect("error").unwrap();
+        let result = run_interact(
+            &runner_config,
+            &String::from("../test-program/checkers/interactor-a-plus-b"),
+        )
+        .expect("error")
+        .unwrap();
         println!("{:?}", result);
     }
-
 }
