@@ -1,11 +1,11 @@
 use crate::error::JudgeCoreError;
-use crate::sandbox::{RawRunResultInfo, ResourceLimitConfig, SandBox, ProcessListener};
+use crate::sandbox::{ProcessListener, RawRunResultInfo, ResourceLimitConfig, SandBox};
+use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::sys::epoll::{
     epoll_create1, epoll_ctl, epoll_wait, EpollCreateFlags, EpollEvent, EpollFlags, EpollOp,
 };
 use nix::unistd::{pipe, read, write};
-use nix::errno::Errno;
 use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
 
@@ -30,7 +30,7 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<RawRunResultInfo
     let output_raw_fd: RawFd = output_file.as_raw_fd();
     let user_spawn = user_process.spawn_with_io(
         &runner_config.program_path,
-        &vec![&String::from("")],
+        &[&String::from("")],
         &runner_config.rlimit_config,
         input_raw_fd,
         output_raw_fd,
@@ -87,7 +87,7 @@ fn pump_proxy_pipe(from: RawFd, to: RawFd, output: RawFd) {
 
 pub fn run_interact(
     runner_config: &RunnerConfig,
-    interactor_path: &String,
+    interactor_path: &str,
     output_path: &String,
 ) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
     let mut user_process = ProcessListener::new(true)?;
@@ -120,15 +120,15 @@ pub fn run_interact(
 
     add_fd(epoll_fd, proxy_read_user);
     add_fd(epoll_fd, proxy_read_interactor);
-    
+
     let (user_exit_read, user_exit_write) = create_pipe();
     let (interactor_exit_read, interactor_exit_write) = create_pipe();
-    
+
     add_fd(epoll_fd, user_exit_read);
     add_fd(epoll_fd, interactor_exit_read);
     user_process.set_exit_fd(user_exit_write, 41u8);
     interact_process.set_exit_fd(interactor_exit_write, 42u8);
-    
+
     let output_file = File::options()
         .write(true)
         .truncate(true) // Overwrite the whole content of this file
@@ -138,7 +138,7 @@ pub fn run_interact(
     println!("Spawning user process");
     let user_spawn = user_process.spawn_with_io(
         &runner_config.program_path,
-        &vec![&String::from("")],
+        &[&String::from("")],
         &runner_config.rlimit_config,
         user_read_proxy,
         user_write_proxy,
@@ -173,8 +173,7 @@ pub fn run_interact(
         let num_events = epoll_wait(epoll_fd, &mut events, -1).expect("Failed to wait for events");
         println!("{} events found!", num_events);
         let mut exited = false;
-        for i in 0..num_events {
-            let event = events[i];
+        for event in events.iter().take(num_events) {
             let fd = event.data() as RawFd;
             if fd == user_exit_read || fd == interactor_exit_read {
                 println!("{:?} fd exited", fd);
@@ -197,7 +196,6 @@ pub fn run_interact(
     // TODO: get result from listener
     // let _user_result = user_process.wait()?;
     // let _interact_result = interact_process.wait()?;
-
 
     let mut checker_process = SandBox::new(false)?;
     // the checker will compare the output of interactor with answer file

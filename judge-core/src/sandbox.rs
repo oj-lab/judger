@@ -1,5 +1,5 @@
 use crate::{error::JudgeCoreError, utils::get_default_rusage};
-use libc::{c_int, rusage, wait4, WEXITSTATUS, WSTOPPED, WTERMSIG, waitpid};
+use libc::{c_int, rusage, wait4, WEXITSTATUS, WSTOPPED, WTERMSIG};
 use libseccomp::{ScmpAction, ScmpFilterContext, ScmpSyscall};
 use nix::sys::resource::{
     setrlimit,
@@ -87,7 +87,10 @@ impl SandBox {
     }
 
     pub fn set_io(&self, input_raw_fd: RawFd, output_raw_fd: RawFd) {
-        println!("process {}: Set up io in: {}, out: {}", self.child_pid, input_raw_fd, output_raw_fd);
+        println!(
+            "process {}: Set up io in: {}, out: {}",
+            self.child_pid, input_raw_fd, output_raw_fd
+        );
         dup2(input_raw_fd, self.stdin_raw_fd).unwrap();
         dup2(output_raw_fd, self.stdout_raw_fd).unwrap();
     }
@@ -105,9 +108,7 @@ impl SandBox {
         Ok(())
     }
 
-    pub fn wait(
-        &self,
-    ) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
+    pub fn wait(&self) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
         let mut status: c_int = 0;
         let mut usage: rusage = get_default_rusage();
         unsafe {
@@ -127,8 +128,8 @@ impl SandBox {
 
     pub fn spawn(
         &mut self,
-        runner_cmd: &String,
-        runner_args: &Vec<&String>,
+        runner_cmd: &str,
+        runner_args: &[&String],
         rlimit_config: &ResourceLimitConfig,
     ) -> Result<Option<()>, JudgeCoreError> {
         let now = Instant::now();
@@ -142,14 +143,14 @@ impl SandBox {
 
                 self.child_pid = child.as_raw();
                 self.begin_time = now;
-                
+
                 Ok(Some(()))
             }
             Ok(ForkResult::Child) => {
                 // Unsafe to use `println!` (or `unwrap`) here. See Safety.
 
-                self.set_limit(&rlimit_config)?;
-                self.exec(&runner_cmd, runner_args).unwrap();
+                self.set_limit(rlimit_config)?;
+                self.exec(runner_cmd, runner_args).unwrap();
 
                 Ok(None)
             }
@@ -163,8 +164,8 @@ impl SandBox {
 
     pub fn spawn_with_io(
         &mut self,
-        runner_cmd: &String,
-        runner_args: &Vec<&String>,
+        runner_cmd: &str,
+        runner_args: &[&String],
         rlimit_config: &ResourceLimitConfig,
         input_raw_fd: RawFd,
         output_raw_fd: RawFd,
@@ -186,10 +187,10 @@ impl SandBox {
             Ok(ForkResult::Child) => {
                 // Unsafe to use `println!` (or `unwrap`) here. See Safety.
                 write(libc::STDOUT_FILENO, "I'm a new child process\n".as_bytes()).ok();
-                
+
                 self.set_io(input_raw_fd, output_raw_fd);
-                self.set_limit(&rlimit_config)?;
-                self.exec(&runner_cmd, runner_args).unwrap();
+                self.set_limit(rlimit_config)?;
+                self.exec(runner_cmd, runner_args).unwrap();
 
                 Ok(None)
             }
@@ -201,7 +202,7 @@ impl SandBox {
         }
     }
 
-    pub fn exec(&self, command: &str, args: &Vec<&String>) -> Result<(), JudgeCoreError> {
+    pub fn exec(&self, command: &str, args: &[&String]) -> Result<(), JudgeCoreError> {
         self.filter.load()?;
         let c_args = args
             .iter()
@@ -209,14 +210,13 @@ impl SandBox {
             .collect::<Result<Vec<_>, _>>()?;
         execve(
             &CString::new(command)?,
-            &c_args.as_slice(),
+            c_args.as_slice(),
             &[CString::new("")?],
         )
         .unwrap();
         Ok(())
     }
 }
-
 
 pub struct ProcessListener {
     sandbox: SandBox,
@@ -249,15 +249,19 @@ impl ProcessListener {
 
     fn report_exit(&self) {
         if self.child_exit_fd != -1 {
-            println!("Report child {} exit to fd {}.", self.pid, self.child_exit_fd);
+            println!(
+                "Report child {} exit to fd {}.",
+                self.pid, self.child_exit_fd
+            );
             let buf = [self.exit_signal];
             write(self.child_exit_fd, &buf).unwrap();
         }
     }
 
-    pub fn spawn(&mut self,
-        runner_cmd: &String,
-        runner_args: &Vec<&String>,
+    pub fn spawn(
+        &mut self,
+        runner_cmd: &str,
+        runner_args: &[&String],
         rlimit_config: &ResourceLimitConfig,
     ) -> Result<Option<()>, JudgeCoreError> {
         self.begin_time = Instant::now();
@@ -269,9 +273,9 @@ impl ProcessListener {
             }
             Ok(ForkResult::Child) => {
                 let process = self.sandbox.spawn(runner_cmd, runner_args, rlimit_config)?;
-                if !process.is_none() {
+                if process.is_some() {
                     // listen to the status of sandbox
-                    let result = self.sandbox.wait()?;
+                    let _result = self.sandbox.wait()?;
                     // how to send the result to parent???
                 }
                 Ok(None)
@@ -282,9 +286,10 @@ impl ProcessListener {
         }
     }
 
-    pub fn spawn_with_io(&mut self,
-        runner_cmd: &String,
-        runner_args: &Vec<&String>,
+    pub fn spawn_with_io(
+        &mut self,
+        runner_cmd: &str,
+        runner_args: &[&String],
         rlimit_config: &ResourceLimitConfig,
         input_raw_fd: RawFd,
         output_raw_fd: RawFd,
@@ -297,10 +302,16 @@ impl ProcessListener {
                 Ok(Some(()))
             }
             Ok(ForkResult::Child) => {
-                let process = self.sandbox.spawn_with_io(runner_cmd, runner_args, rlimit_config, input_raw_fd, output_raw_fd)?;
-                if !process.is_none() {
+                let process = self.sandbox.spawn_with_io(
+                    runner_cmd,
+                    runner_args,
+                    rlimit_config,
+                    input_raw_fd,
+                    output_raw_fd,
+                )?;
+                if process.is_some() {
                     // listen to the status of sandbox
-                    let result = self.sandbox.wait()?;
+                    let _result = self.sandbox.wait()?;
                     self.pid = self.sandbox.child_pid;
                     self.report_exit();
                     // how to send the result to parent???

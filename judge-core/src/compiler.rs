@@ -43,7 +43,7 @@ impl Compiler {
             Language::Python => panic!("Cannot be compiled"),
             // add other supported language
         };
-        let command = TemplateCommand::new(compiler_name.clone(), template_args);
+        let command = TemplateCommand::new(compiler_name, template_args);
         Self {
             language,
             command,
@@ -81,7 +81,10 @@ pub mod compiler {
     #[test]
     fn test_compile_cpp() {
         let compiler = Compiler::new(Language::Cpp, vec!["-std=c++17".to_string()]);
-        match compiler.compile("../infinite_loop.cpp", "../infinite_loop_test") {
+        match compiler.compile(
+            "../test-program/infinite_loop.cpp",
+            "../test-program/infinite_loop_test",
+        ) {
             Ok(out) => {
                 println!("{}", out);
             }
