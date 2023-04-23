@@ -12,12 +12,16 @@ env:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
     - uses: actions/checkout@v2
     - name: Install dependencies
       run: sudo apt-get install libseccomp-dev protobuf-compiler
+    - name: Test Command sh
+      run: sh -c "echo test"
+    - name: Check ENV
+      run: echo $(rustup --version && gcc -v)
     - name: Build
       run: cargo build --verbose
     - name: Run tests
