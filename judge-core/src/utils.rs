@@ -1,5 +1,29 @@
 use libc::rusage;
 
+#[derive(Clone)]
+pub struct TemplateCommand {
+    run_template: String,
+    template_args: Vec<String>,
+}
+
+impl TemplateCommand {
+    pub fn new(run_template: String, template_args: Vec<String>) -> Self {
+        Self {
+            run_template,
+            template_args,
+        }
+    }
+
+    pub fn get_command(&self, args: Vec<String>) -> String {
+        assert_eq!(args.len(), self.template_args.len());
+        let mut command = self.run_template.clone();
+        for (i, arg) in self.template_args.iter().enumerate() {
+            command = command.replace(arg, &args[i]);
+        }
+        command
+    }
+}
+
 pub fn get_default_rusage() -> rusage {
     rusage {
         ru_utime: libc::timeval {

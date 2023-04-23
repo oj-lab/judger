@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use judge_core::compiler::CompilerType;
+use judge_core::compiler::{Compiler, Language};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -16,7 +16,7 @@ enum Commands {
         #[arg(short, long)]
         target: String,
         #[arg(short, long)]
-        compiler: CompilerType,
+        language: Language,
     },
 }
 
@@ -26,14 +26,10 @@ fn main() {
         Some(Commands::Compile {
             source,
             target,
-            compiler,
+            language,
         }) => {
-            let config = judge_core::compiler::CompileConfig {
-                compiler_type: compiler,
-                src_path: source,
-                target_path: target,
-            };
-            let output = judge_core::compiler::compile(&config).unwrap();
+            let compiler = Compiler::new(language, vec!["-std=c++17".to_string()]);
+            let output = compiler.compile(&source, &target);
             println!("{:?}", output)
         }
         None => {}

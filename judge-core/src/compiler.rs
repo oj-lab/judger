@@ -1,84 +1,92 @@
-use std::{
-    process::{Command, Output},
-    str::FromStr,
-};
-
-use crate::error::JudgeCoreError;
+use crate::utils::TemplateCommand;
+use std::{process::Command, str::FromStr};
 
 #[derive(Clone)]
-pub enum CompilerType {
-    GccV9,
-    GppV9,
+pub enum Language {
+    Rust,
+    Cpp,
+    Python,
+    // add other supported languages here
 }
 
-impl FromStr for CompilerType {
+impl FromStr for Language {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "gcc" => Ok(Self::GccV9),
-            "g++" => Ok(Self::GccV9),
+            "rust" => Ok(Self::Rust),
+            "cpp" => Ok(Self::Cpp),
+            "python" => Ok(Self::Python),
             _ => Err(anyhow::anyhow!("Compiler not found: {}", s)),
         }
     }
 }
 
-pub struct CompileConfig {
-    pub compiler_type: CompilerType,
-    pub src_path: String,
-    pub target_path: String,
+#[derive(Clone)]
+pub struct Compiler {
+    language: Language,
+    command: TemplateCommand,
+    compiler_args: Vec<String>,
 }
 
-pub struct CompileCommand {
-    pub program: &'static str,
-    pub args: Vec<String>,
-}
+impl Compiler {
+    pub fn new(language: Language, compiler_args: Vec<String>) -> Self {
+        let compiler_name = match language {
+            Language::Rust => "rustc {src_path} -o {target_path}".to_string(),
+            Language::Cpp => "g++ {src_path} -o {target_path}".to_string(),
+            Language::Python => panic!("Cannot be compiled"),
+            // add other supported language
+        };
+        let template_args = match language {
+            Language::Rust => vec!["{src_path}".to_string(), "{target_path}".to_string()],
+            Language::Cpp => vec!["{src_path}".to_string(), "{target_path}".to_string()],
+            Language::Python => panic!("Cannot be compiled"),
+            // add other supported language
+        };
+        let command = TemplateCommand::new(compiler_name, template_args);
+        Self {
+            language,
+            command,
+            compiler_args,
+        }
+    }
 
-pub fn compile(config: &CompileConfig) -> Result<Output, JudgeCoreError> {
-    let compile_command = get_command(&config);
-    let output = Command::new(compile_command.program)
-        .args(compile_command.args)
-        .output()?;
-    Ok(output)
-}
+    pub fn compile(&self, src_path: &str, target_path: &str) -> Result<String, String> {
+        let output = Command::new("sh")
+            .arg("-c")
+            .arg(
+                &self
+                    .command
+                    .get_command(vec![src_path.to_string(), target_path.to_string()]),
+            )
+            .args(self.compiler_args.iter())
+            .output()
+            .map_err(|e| format!("Failed to execute compiler: {}", e))?;
 
-fn get_command(config: &CompileConfig) -> CompileCommand {
-    match config.compiler_type {
-        CompilerType::GccV9 => CompileCommand {
-            program: "gcc",
-            args: vec![
-                "-o".to_string(),
-                config.target_path.clone(),
-                config.src_path.clone(),
-            ],
-        },
-        CompilerType::GppV9 => CompileCommand {
-            program: "g++",
-            args: vec![
-                "-o".to_string(),
-                config.target_path.clone(),
-                config.src_path.clone(),
-            ],
-        },
+        if output.status.success() {
+            let compile_output = String::from_utf8_lossy(&output.stdout).to_string();
+            Ok(compile_output)
+        } else {
+            // define error
+            let error_output = String::from_utf8_lossy(&output.stderr).to_string();
+            Err(error_output)
+        }
     }
 }
 
 #[cfg(test)]
 pub mod compiler {
-    use super::{compile, CompileConfig};
+    use super::{Compiler, Language};
 
     #[test]
-    fn test_compile() {
-        let config = CompileConfig {
-            compiler_type: super::CompilerType::GppV9,
-            src_path: "../infinite_loop.cpp".to_string(),
-            target_path: "../infinite_loop_test".to_string(),
-        };
-        match compile(&config) {
+    fn test_compile_cpp() {
+        let compiler = Compiler::new(Language::Cpp, vec!["-std=c++17".to_string()]);
+        match compiler.compile(
+            "../test-program/infinite_loop.cpp",
+            "../test-program/infinite_loop_test",
+        ) {
             Ok(out) => {
-                if !out.status.success() {
-                    panic!("{:?}", out)
-                }
+                println!("{}", out);
             }
             Err(e) => panic!("{:?}", e),
         }
