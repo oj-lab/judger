@@ -1,0 +1,3 @@
+[submodule "test-collection"]
+	path = test-collection
+	url = https://github.com/OJ-lab/judger-test-collection.git

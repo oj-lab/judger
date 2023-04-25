@@ -235,8 +235,8 @@ pub mod monitor {
     #[test]
     fn test_run_judge() {
         let runner_config = RunnerConfig {
-            program_path: "./../test-program/read_and_write".to_owned(),
-            checker_path: "./../test-program/checkers/lcmp".to_owned(),
+            program_path: "./../test-collection/programs/read_and_write".to_owned(),
+            checker_path: "./../test-collection/programs/checkers/lcmp".to_owned(),
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
@@ -249,8 +249,8 @@ pub mod monitor {
     #[test]
     fn test_run_interact() {
         let runner_config = RunnerConfig {
-            program_path: "./../test-program/read_and_write".to_owned(),
-            checker_path: "./../test-program/checkers/lcmp".to_owned(),
+            program_path: "./../test-collection/programs/read_and_write".to_owned(),
+            checker_path: "./../test-collection/programs/checkers/lcmp".to_owned(),
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
@@ -258,7 +258,7 @@ pub mod monitor {
         };
         let result = run_interact(
             &runner_config,
-            &String::from("../test-program/checkers/interactor-a-plus-b"),
+            &String::from("../test-collection/programs/checkers/interactor-a-plus-b"),
             &String::from("../tmp/interactor"),
         )
         .expect("error");
