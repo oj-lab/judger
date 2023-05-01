@@ -132,8 +132,7 @@ pub fn run_interact(
     let output_file = File::options()
         .write(true)
         .truncate(true) // Overwrite the whole content of this file
-        .open(output_path)
-        .unwrap();
+        .open(output_path)?;
     let output_raw_fd: RawFd = output_file.as_raw_fd();
     println!("Spawning user process");
     let user_spawn = user_process.spawn_with_io(
@@ -235,8 +234,8 @@ pub mod monitor {
     #[test]
     fn test_run_judge() {
         let runner_config = RunnerConfig {
-            program_path: "./../test-collection/programs/read_and_write".to_owned(),
-            checker_path: "./../test-collection/programs/checkers/lcmp".to_owned(),
+            program_path: "./../test-collection/dist/programs/read_and_write".to_owned(),
+            checker_path: "./../test-collection/dist/programs/checkers/lcmp".to_owned(),
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
@@ -249,8 +248,8 @@ pub mod monitor {
     #[test]
     fn test_run_interact() {
         let runner_config = RunnerConfig {
-            program_path: "./../test-collection/programs/read_and_write".to_owned(),
-            checker_path: "./../test-collection/programs/checkers/lcmp".to_owned(),
+            program_path: "./../test-collection/dist/programs/read_and_write".to_owned(),
+            checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
@@ -258,12 +257,20 @@ pub mod monitor {
         };
         let result = run_interact(
             &runner_config,
-            &String::from("../test-collection/programs/checkers/interactor-a-plus-b"),
+            &String::from("../test-collection/dist/checkers/interactor-a-plus-b"),
             &String::from("../tmp/interactor"),
-        )
-        .expect("error");
-        if !result.is_none() {
-            println!("{:?}", result);
+        );
+        match result {
+            Ok(Some(result)) => {
+                println!("{:?}", result);
+            }
+            Ok(None) => {
+                println!("Ignoring this result, for it's from a fork child process");
+            }
+            Err(e) => {
+                println!("meet error: {:?}", e);
+                assert!(false);
+            }
         }
     }
 }

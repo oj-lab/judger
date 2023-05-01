@@ -82,8 +82,8 @@ pub mod compiler {
     fn test_compile_cpp() {
         let compiler = Compiler::new(Language::Cpp, vec!["-std=c++17".to_string()]);
         match compiler.compile(
-            "../test-collection/programs/infinite_loop.cpp",
-            "../test-collection/programs/infinite_loop_test",
+            "../test-collection/src/programs/infinite_loop.cpp",
+            "../tmp/infinite_loop_test",
         ) {
             Ok(out) => {
                 println!("{}", out);

@@ -115,7 +115,7 @@ impl SandBox {
             wait4(self.child_pid, &mut status, WSTOPPED, &mut usage);
         }
 
-        println!("Detected process exit");
+        println!("Detected process pid={} exit", self.child_pid);
 
         Ok(Some(RawRunResultInfo {
             exit_status: status,
@@ -150,13 +150,13 @@ impl SandBox {
                 // Unsafe to use `println!` (or `unwrap`) here. See Safety.
 
                 self.set_limit(rlimit_config)?;
-                self.exec(runner_cmd, runner_args).unwrap();
+                self.exec(runner_cmd, runner_args)?;
 
                 Ok(None)
             }
             Err(_) => {
                 println!("Fork failed");
-
+                // TODO: error handling
                 Ok(None)
             }
         }
@@ -190,7 +190,7 @@ impl SandBox {
 
                 self.set_io(input_raw_fd, output_raw_fd);
                 self.set_limit(rlimit_config)?;
-                self.exec(runner_cmd, runner_args).unwrap();
+                self.exec(runner_cmd, runner_args)?;
 
                 Ok(None)
             }
@@ -208,13 +208,14 @@ impl SandBox {
             .iter()
             .map(|s| CString::new(s.as_bytes()))
             .collect::<Result<Vec<_>, _>>()?;
-        execve(
+        match execve(
             &CString::new(command)?,
             c_args.as_slice(),
             &[CString::new("")?],
-        )
-        .unwrap();
-        Ok(())
+        ) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(e, "sandbox exec failed".to_string())),
+        }
     }
 }
 
