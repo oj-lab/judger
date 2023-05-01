@@ -11,19 +11,19 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
       - name: Install dependencies
         run: sudo apt-get install -y libseccomp-dev protobuf-compiler
-      - name: Prepare submodule
-        run: git submodule update --init --recursive
-      - name: Test Command sh
-        run: sh -c "echo test"
       - name: Check ENV
-        run: echo $(rustup --version && gcc -v)
-      - name: Build
+        run: echo $(rustup --version && gcc -v && g++ -v)
+      - name: Build test dist
+        run: cd test-collection && ./build.sh && cd ..
+      - name: Build target
         run: cargo build --verbose
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --verbose -- --nocapture
