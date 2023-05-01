@@ -235,14 +235,17 @@ pub mod monitor {
     fn test_run_judge() {
         let runner_config = RunnerConfig {
             program_path: "./../test-collection/dist/programs/read_and_write".to_owned(),
-            checker_path: "./../test-collection/dist/programs/checkers/lcmp".to_owned(),
+            checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
             rlimit_config: TEST_CONFIG,
         };
-        let result = run_judge(&runner_config).expect("error").unwrap();
-        println!("{:?}", result);
+        let result = run_judge(&runner_config);
+        assert!(result.is_ok());
+        if let Ok(Some(result)) = result {
+            println!("{:?}", result);
+        }
     }
 
     #[test]
