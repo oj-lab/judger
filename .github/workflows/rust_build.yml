@@ -1,28 +1,29 @@
-name: Build
+name: Test
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  cargo-test:
     runs-on: ubuntu-20.04
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Install dependencies
-      run: sudo apt-get install libseccomp-dev protobuf-compiler
-    - name: Test Command sh
-      run: sh -c "echo test"
-    - name: Check ENV
-      run: echo $(rustup --version && gcc -v)
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: sudo apt-get install -y libseccomp-dev protobuf-compiler g++-11
+      - name: Setup g++-11
+        run: sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
+      - name: Check ENV
+        run: echo $(rustup --version && g++ -v)
+      - name: Build test dist
+        run: cd test-collection && ./build.sh && cd ..
+      - name: Run tests
+        run: cargo test --verbose -- --nocapture
