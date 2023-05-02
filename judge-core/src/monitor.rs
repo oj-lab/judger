@@ -71,7 +71,7 @@ fn pump_proxy_pipe(from: RawFd, to: RawFd, output: RawFd) {
     loop {
         match read(from, &mut buf) {
             Ok(nread) => {
-                println!("{} read. {} -> {}", nread, from, to);
+                log::info!("{} read. {} -> {}", nread, from, to);
                 write(to, &buf[..nread]).ok();
                 write(output, &buf[..nread]).ok();
             }
@@ -134,7 +134,7 @@ pub fn run_interact(
         .truncate(true) // Overwrite the whole content of this file
         .open(output_path)?;
     let output_raw_fd: RawFd = output_file.as_raw_fd();
-    println!("Spawning user process");
+    log::info!("Spawning user process");
     let user_spawn = user_process.spawn_with_io(
         &runner_config.program_path,
         &[&String::from("")],
@@ -154,7 +154,7 @@ pub fn run_interact(
         &runner_config.output_file_path,
         &runner_config.answer_file_path,
     ];
-    println!("Spawning interactor process");
+    log::info!("Spawning interactor process");
     let interact_spawn = interact_process.spawn_with_io(
         interactor_path,
         &interact_args,
@@ -170,12 +170,12 @@ pub fn run_interact(
     let mut events = [EpollEvent::empty(); 128];
     loop {
         let num_events = epoll_wait(epoll_fd, &mut events, -1).expect("Failed to wait for events");
-        println!("{} events found!", num_events);
+        log::info!("{} events found!", num_events);
         let mut exited = false;
         for event in events.iter().take(num_events) {
             let fd = event.data() as RawFd;
             if fd == user_exit_read || fd == interactor_exit_read {
-                println!("{:?} fd exited", fd);
+                log::info!("{:?} fd exited", fd);
                 exited = true;
                 break;
             }
@@ -190,7 +190,7 @@ pub fn run_interact(
         }
     }
 
-    println!("Epoll finished!");
+    log::info!("Epoll finished!");
 
     // TODO: get result from listener
     // let _user_result = user_process.wait()?;
@@ -204,7 +204,7 @@ pub fn run_interact(
         &runner_config.output_file_path,
         &runner_config.answer_file_path,
     ];
-    println!("Spawning checker process");
+    log::info!("Spawning checker process");
     let checker_spawn = checker_process.spawn(
         &runner_config.checker_path,
         &checker_args,
@@ -244,7 +244,7 @@ pub mod monitor {
         let result = run_judge(&runner_config);
         assert!(result.is_ok());
         if let Ok(Some(result)) = result {
-            println!("{:?}", result);
+            log::info!("{:?}", result);
         }
     }
 
@@ -265,13 +265,13 @@ pub mod monitor {
         );
         match result {
             Ok(Some(result)) => {
-                println!("{:?}", result);
+                log::info!("{:?}", result);
             }
             Ok(None) => {
-                println!("Ignoring this result, for it's from a fork child process");
+                log::info!("Ignoring this result, for it's from a fork child process");
             }
             Err(e) => {
-                println!("meet error: {:?}", e);
+                log::error!("meet error: {:?}", e);
                 assert!(false);
             }
         }

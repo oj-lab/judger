@@ -87,7 +87,7 @@ impl SandBox {
     }
 
     pub fn set_io(&self, input_raw_fd: RawFd, output_raw_fd: RawFd) {
-        println!(
+        log::info!(
             "process {}: Set up io in: {}, out: {}",
             self.child_pid, input_raw_fd, output_raw_fd
         );
@@ -115,7 +115,7 @@ impl SandBox {
             wait4(self.child_pid, &mut status, WSTOPPED, &mut usage);
         }
 
-        println!("Detected process pid={} exit", self.child_pid);
+        log::info!("Detected process pid={} exit", self.child_pid);
 
         Ok(Some(RawRunResultInfo {
             exit_status: status,
@@ -136,7 +136,7 @@ impl SandBox {
 
         match unsafe { fork() } {
             Ok(ForkResult::Parent { child, .. }) => {
-                println!(
+                log::info!(
                     "Continuing execution in parent process, new child has pid: {}",
                     child
                 );
@@ -155,7 +155,7 @@ impl SandBox {
                 Ok(None)
             }
             Err(_) => {
-                println!("Fork failed");
+                log::info!("Fork failed");
                 // TODO: error handling
                 Ok(None)
             }
@@ -174,7 +174,7 @@ impl SandBox {
 
         match unsafe { fork() } {
             Ok(ForkResult::Parent { child, .. }) => {
-                println!(
+                log::info!(
                     "Continuing execution in parent process, new child has pid: {}",
                     child
                 );
@@ -186,8 +186,6 @@ impl SandBox {
             }
             Ok(ForkResult::Child) => {
                 // Unsafe to use `println!` (or `unwrap`) here. See Safety.
-                write(libc::STDOUT_FILENO, "I'm a new child process\n".as_bytes()).ok();
-
                 self.set_io(input_raw_fd, output_raw_fd);
                 self.set_limit(rlimit_config)?;
                 self.exec(runner_cmd, runner_args)?;
@@ -195,7 +193,7 @@ impl SandBox {
                 Ok(None)
             }
             Err(_) => {
-                println!("Fork failed");
+                log::info!("Fork failed");
 
                 Ok(None)
             }
@@ -250,7 +248,7 @@ impl ProcessListener {
 
     fn report_exit(&self) {
         if self.child_exit_fd != -1 {
-            println!(
+            log::info!(
                 "Report child {} exit to fd {}.",
                 self.pid, self.child_exit_fd
             );

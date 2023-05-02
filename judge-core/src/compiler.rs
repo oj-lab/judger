@@ -1,4 +1,5 @@
 use crate::utils::TemplateCommand;
+use std::fmt;
 use std::{process::Command, str::FromStr};
 
 #[derive(Clone)]
@@ -7,6 +8,17 @@ pub enum Language {
     Cpp,
     Python,
     // add other supported languages here
+}
+
+impl fmt::Display for Language {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Rust => write!(f, "rust"),
+            Self::Cpp => write!(f, "cpp"),
+            Self::Python => write!(f, "python"),
+            // add other supported languages here
+        }
+    }
 }
 
 impl FromStr for Language {
@@ -52,6 +64,7 @@ impl Compiler {
     }
 
     pub fn compile(&self, src_path: &str, target_path: &str) -> Result<String, String> {
+        log::info!("Compiling language={} src={} target={}", self.language, src_path, target_path);
         let output = Command::new("sh")
             .arg("-c")
             .arg(
@@ -62,13 +75,13 @@ impl Compiler {
             .args(self.compiler_args.iter())
             .output()
             .map_err(|e| format!("Failed to execute compiler: {}", e))?;
-
         if output.status.success() {
             let compile_output = String::from_utf8_lossy(&output.stdout).to_string();
+            log::info!("Compile output: {}", compile_output);
             Ok(compile_output)
         } else {
-            // define error
             let error_output = String::from_utf8_lossy(&output.stderr).to_string();
+            log::error!("Compile error: {}", error_output);
             Err(error_output)
         }
     }
@@ -78,15 +91,20 @@ impl Compiler {
 pub mod compiler {
     use super::{Compiler, Language};
 
+    fn init() {
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
+
     #[test]
     fn test_compile_cpp() {
+        init();
         let compiler = Compiler::new(Language::Cpp, vec!["-std=c++17".to_string()]);
         match compiler.compile(
             "../test-collection/src/programs/infinite_loop.cpp",
             "../tmp/infinite_loop_test",
         ) {
             Ok(out) => {
-                println!("{}", out);
+                log::info!("{}", out);
             }
             Err(e) => panic!("{:?}", e),
         }

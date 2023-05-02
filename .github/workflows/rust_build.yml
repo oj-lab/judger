@@ -26,4 +26,4 @@ jobs:
       - name: Build test dist
         run: cd test-collection && ./build.sh && cd ..
       - name: Run tests
-        run: cargo test --verbose -- --nocapture
+        run: RUST_LOG=info cargo test --verbose -- --nocapture
