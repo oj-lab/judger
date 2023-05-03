@@ -89,7 +89,9 @@ impl SandBox {
     pub fn set_io(&self, input_raw_fd: RawFd, output_raw_fd: RawFd) {
         log::info!(
             "process {}: Set up io in: {}, out: {}",
-            self.child_pid, input_raw_fd, output_raw_fd
+            self.child_pid,
+            input_raw_fd,
+            output_raw_fd
         );
         dup2(input_raw_fd, self.stdin_raw_fd).unwrap();
         dup2(output_raw_fd, self.stdout_raw_fd).unwrap();
@@ -212,7 +214,10 @@ impl SandBox {
             &[CString::new("")?],
         ) {
             Ok(_) => Ok(()),
-            Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(e, "sandbox exec failed".to_string())),
+            Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(
+                e,
+                "sandbox exec failed".to_string(),
+            )),
         }
     }
 }
@@ -250,7 +255,8 @@ impl ProcessListener {
         if self.child_exit_fd != -1 {
             log::info!(
                 "Report child {} exit to fd {}.",
-                self.pid, self.child_exit_fd
+                self.pid,
+                self.child_exit_fd
             );
             let buf = [self.exit_signal];
             write(self.child_exit_fd, &buf).unwrap();

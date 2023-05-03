@@ -64,7 +64,10 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<RawRunResultInfo
 fn set_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
     match fcntl(fd, FcntlArg::F_SETFL(OFlag::O_NONBLOCK)) {
         Ok(v) => Ok(v),
-        Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(e, "failed to set non-blocking".to_string())),
+        Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(
+            e,
+            "failed to set non-blocking".to_string(),
+        )),
     }
 }
 
@@ -97,7 +100,10 @@ pub fn run_interact(
         let mut event = EpollEvent::new(EpollFlags::EPOLLIN, fd as u64);
         match epoll_ctl(epoll_fd, EpollOp::EpollCtlAdd, fd, Some(&mut event)) {
             Ok(_) => Ok(()),
-            Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(e, "Failed to add fd to epoll".to_string())),
+            Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(
+                e,
+                "Failed to add fd to epoll".to_string(),
+            )),
         }
     }
 
@@ -107,7 +113,10 @@ pub fn run_interact(
     fn create_pipe() -> Result<(RawFd, RawFd), JudgeCoreError> {
         match pipe() {
             Ok((read_fd, write_fd)) => Ok((read_fd, write_fd)),
-            Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(e, "Failed to create pipe".to_string())),
+            Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(
+                e,
+                "Failed to create pipe".to_string(),
+            )),
         }
     }
 
@@ -123,8 +132,7 @@ pub fn run_interact(
     set_non_blocking(proxy_read_user)?;
     set_non_blocking(proxy_read_interactor)?;
 
-    let epoll_fd =
-        epoll_create1(EpollCreateFlags::EPOLL_CLOEXEC)?;
+    let epoll_fd = epoll_create1(EpollCreateFlags::EPOLL_CLOEXEC)?;
 
     add_epoll_fd(epoll_fd, proxy_read_user)?;
     add_epoll_fd(epoll_fd, proxy_read_interactor)?;

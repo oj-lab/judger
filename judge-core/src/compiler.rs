@@ -64,7 +64,12 @@ impl Compiler {
     }
 
     pub fn compile(&self, src_path: &str, target_path: &str) -> Result<String, String> {
-        log::info!("Compiling language={} src={} target={}", self.language, src_path, target_path);
+        log::info!(
+            "Compiling language={} src={} target={}",
+            self.language,
+            src_path,
+            target_path
+        );
         let output = Command::new("sh")
             .arg("-c")
             .arg(
