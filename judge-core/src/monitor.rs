@@ -61,8 +61,11 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<RawRunResultInfo
     Ok(checker_result)
 }
 
-fn set_non_blocking(fd: RawFd) {
-    fcntl(fd, FcntlArg::F_SETFL(OFlag::O_NONBLOCK)).expect("failed to set fd to non blocking");
+fn set_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
+    match fcntl(fd, FcntlArg::F_SETFL(OFlag::O_NONBLOCK)) {
+        Ok(v) => Ok(v),
+        Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(e, "failed to set non-blocking".to_string())),
+    }
 }
 
 // write the content of `from` to `to`, record to output
@@ -90,42 +93,47 @@ pub fn run_interact(
     interactor_path: &str,
     output_path: &String,
 ) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
+    fn add_epoll_fd(epoll_fd: RawFd, fd: RawFd) -> Result<(), JudgeCoreError> {
+        let mut event = EpollEvent::new(EpollFlags::EPOLLIN, fd as u64);
+        match epoll_ctl(epoll_fd, EpollOp::EpollCtlAdd, fd, Some(&mut event)) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(e, "Failed to add fd to epoll".to_string())),
+        }
+    }
+
     let mut user_process = ProcessListener::new(true)?;
     let mut interact_process = ProcessListener::new(false)?;
 
-    fn create_pipe() -> (RawFd, RawFd) {
-        pipe().expect("Failed to create pipe")
+    fn create_pipe() -> Result<(RawFd, RawFd), JudgeCoreError> {
+        match pipe() {
+            Ok((read_fd, write_fd)) => Ok((read_fd, write_fd)),
+            Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(e, "Failed to create pipe".to_string())),
+        }
     }
 
-    let (proxy_read_user, user_write_proxy) = create_pipe();
-    let (proxy_read_interactor, interactor_write_proxy) = create_pipe();
-    let (user_read_proxy, proxy_write_user) = create_pipe();
-    let (interactor_read_proxy, proxy_write_interactor) = create_pipe();
+    let (proxy_read_user, user_write_proxy) = create_pipe()?;
+    let (proxy_read_interactor, interactor_write_proxy) = create_pipe()?;
+    let (user_read_proxy, proxy_write_user) = create_pipe()?;
+    let (interactor_read_proxy, proxy_write_interactor) = create_pipe()?;
 
     // epoll will listen to the write event
     // when should it be non blocking???
-    set_non_blocking(user_write_proxy);
-    set_non_blocking(interactor_write_proxy);
-    set_non_blocking(proxy_read_user);
-    set_non_blocking(proxy_read_interactor);
+    set_non_blocking(user_write_proxy)?;
+    set_non_blocking(interactor_write_proxy)?;
+    set_non_blocking(proxy_read_user)?;
+    set_non_blocking(proxy_read_interactor)?;
 
     let epoll_fd =
-        epoll_create1(EpollCreateFlags::EPOLL_CLOEXEC).expect("Failed to create epoll instance");
+        epoll_create1(EpollCreateFlags::EPOLL_CLOEXEC)?;
 
-    fn add_fd(epoll_fd: RawFd, fd: RawFd) {
-        let mut event = EpollEvent::new(EpollFlags::EPOLLIN, fd as u64);
-        epoll_ctl(epoll_fd, EpollOp::EpollCtlAdd, fd, Some(&mut event))
-            .expect("Failed to add fd to epoll");
-    }
+    add_epoll_fd(epoll_fd, proxy_read_user)?;
+    add_epoll_fd(epoll_fd, proxy_read_interactor)?;
 
-    add_fd(epoll_fd, proxy_read_user);
-    add_fd(epoll_fd, proxy_read_interactor);
+    let (user_exit_read, user_exit_write) = create_pipe()?;
+    let (interactor_exit_read, interactor_exit_write) = create_pipe()?;
 
-    let (user_exit_read, user_exit_write) = create_pipe();
-    let (interactor_exit_read, interactor_exit_write) = create_pipe();
-
-    add_fd(epoll_fd, user_exit_read);
-    add_fd(epoll_fd, interactor_exit_read);
+    add_epoll_fd(epoll_fd, user_exit_read)?;
+    add_epoll_fd(epoll_fd, interactor_exit_read)?;
     user_process.set_exit_fd(user_exit_write, 41u8);
     interact_process.set_exit_fd(interactor_exit_write, 42u8);
 
@@ -169,7 +177,7 @@ pub fn run_interact(
 
     let mut events = [EpollEvent::empty(); 128];
     loop {
-        let num_events = epoll_wait(epoll_fd, &mut events, -1).expect("Failed to wait for events");
+        let num_events = epoll_wait(epoll_fd, &mut events, -1)?;
         log::info!("{} events found!", num_events);
         let mut exited = false;
         for event in events.iter().take(num_events) {
