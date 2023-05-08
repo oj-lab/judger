@@ -241,7 +241,7 @@ pub mod monitor {
 
     const TEST_CONFIG: ResourceLimitConfig = ResourceLimitConfig {
         stack_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
-        as_limit: Some((256 * 1024 * 1024, 256 * 1024 * 1024)),
+        as_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
         cpu_limit: Some((1, 2)),
         nproc_limit: Some((1, 1)),
         fsize_limit: Some((1024, 1024)),
@@ -251,6 +251,40 @@ pub mod monitor {
     fn test_run_judge() {
         let runner_config = RunnerConfig {
             program_path: "./../test-collection/dist/programs/read_and_write".to_owned(),
+            checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
+            input_file_path: "../tmp/in".to_owned(),
+            output_file_path: "../tmp/out".to_owned(),
+            answer_file_path: "../tmp/ans".to_owned(),
+            rlimit_config: TEST_CONFIG,
+        };
+        let result = run_judge(&runner_config);
+        assert!(result.is_ok());
+        if let Ok(Some(result)) = result {
+            log::info!("{:?}", result);
+        }
+    }
+
+    #[test]
+    fn test_run_tle() {
+        let runner_config = RunnerConfig {
+            program_path: "./../test-collection/dist/programs/infinite_loop".to_owned(),
+            checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
+            input_file_path: "../tmp/in".to_owned(),
+            output_file_path: "../tmp/out".to_owned(),
+            answer_file_path: "../tmp/ans".to_owned(),
+            rlimit_config: TEST_CONFIG,
+        };
+        let result = run_judge(&runner_config);
+        assert!(result.is_ok());
+        if let Ok(Some(result)) = result {
+            log::info!("{:?}", result);
+        }
+    }
+
+    #[test]
+    fn test_run_mle() {
+        let runner_config = RunnerConfig {
+            program_path: "./../test-collection/dist/programs/memory_limit".to_owned(),
             checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
