@@ -110,7 +110,7 @@ impl SandBox {
         Ok(())
     }
 
-    pub fn wait(&self) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
+    pub fn wait(&self) -> Result<RawRunResultInfo, JudgeCoreError> {
         let mut status: c_int = 0;
         let mut usage: rusage = get_default_rusage();
         unsafe {
@@ -119,13 +119,13 @@ impl SandBox {
 
         log::info!("Detected process pid={} exit", self.child_pid);
 
-        Ok(Some(RawRunResultInfo {
+        Ok(RawRunResultInfo {
             exit_status: status,
             exit_signal: WTERMSIG(status),
             exit_code: WEXITSTATUS(status),
             real_time_cost: self.begin_time.elapsed(),
             resource_usage: usage,
-        }))
+        })
     }
 
     pub fn spawn(

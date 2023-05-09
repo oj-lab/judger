@@ -1,4 +1,7 @@
 use crate::error::JudgeCoreError;
+use crate::result::{
+    check_checker_result, check_user_result, get_max_mem, get_run_time, JudgeResultInfo,
+};
 use crate::sandbox::{ProcessListener, RawRunResultInfo, ResourceLimitConfig, SandBox};
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
@@ -18,7 +21,7 @@ pub struct RunnerConfig {
     pub rlimit_config: ResourceLimitConfig,
 }
 
-pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
+pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
     let mut user_process = SandBox::new(true)?;
     let input_file = File::open(&runner_config.input_file_path)?;
     let output_file = File::options()
@@ -38,7 +41,18 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<RawRunResultInfo
     if user_spawn.is_none() {
         return Ok(None);
     }
-    let _user_result = user_process.wait()?;
+    let user_result = user_process.wait()?;
+    let user_time = get_run_time(&user_result);
+    let max_mem = get_max_mem(&user_result);
+    if let Some(verdict) = check_user_result(&user_result) {
+        return Ok(Some(JudgeResultInfo {
+            verdict,
+            time: user_time,
+            memory: max_mem,
+            exit_code: user_result.exit_code,
+            checker_exit_code: 0,
+        }));
+    }
 
     let mut checker_process = SandBox::new(false)?;
     let first_args = String::from("");
@@ -58,7 +72,14 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<RawRunResultInfo
         return Ok(None);
     }
     let checker_result = checker_process.wait()?;
-    Ok(checker_result)
+    let verdict = check_checker_result(&checker_result);
+    Ok(Some(JudgeResultInfo {
+        verdict,
+        time: user_time,
+        memory: max_mem,
+        exit_code: user_result.exit_code,
+        checker_exit_code: checker_result.exit_code,
+    }))
 }
 
 fn set_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
@@ -231,12 +252,13 @@ pub fn run_interact(
         return Ok(None);
     }
     let checker_result = checker_process.wait()?;
-    Ok(checker_result)
+    Ok(Some(checker_result))
 }
 
 #[cfg(test)]
 pub mod monitor {
     use super::*;
+    use crate::result::JudgeVerdict;
     use crate::sandbox::ResourceLimitConfig;
 
     const TEST_CONFIG: ResourceLimitConfig = ResourceLimitConfig {
@@ -261,6 +283,7 @@ pub mod monitor {
         assert!(result.is_ok());
         if let Ok(Some(result)) = result {
             log::info!("{:?}", result);
+            assert_eq!(result.verdict, JudgeVerdict::Accepted);
         }
     }
 
@@ -278,6 +301,7 @@ pub mod monitor {
         assert!(result.is_ok());
         if let Ok(Some(result)) = result {
             log::info!("{:?}", result);
+            assert_eq!(result.verdict, JudgeVerdict::TimeLimitExceeded);
         }
     }
 
@@ -295,6 +319,7 @@ pub mod monitor {
         assert!(result.is_ok());
         if let Ok(Some(result)) = result {
             log::info!("{:?}", result);
+            assert_eq!(result.verdict, JudgeVerdict::RuntimeError);
         }
     }
 
