@@ -18,6 +18,7 @@ pub struct RunnerConfig {
     pub input_file_path: String,
     pub output_file_path: String,
     pub answer_file_path: String,
+    pub check_file_path: String,
     pub rlimit_config: ResourceLimitConfig,
 }
 
@@ -61,6 +62,7 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>
         &runner_config.input_file_path,
         &runner_config.output_file_path,
         &runner_config.answer_file_path,
+        &runner_config.check_file_path,
     ];
 
     let checker_spawn = checker_process.spawn(
@@ -240,6 +242,7 @@ pub fn run_interact(
         &runner_config.input_file_path,
         &runner_config.output_file_path,
         &runner_config.answer_file_path,
+        &runner_config.check_file_path,
     ];
     log::info!("Spawning checker process");
     let checker_spawn = checker_process.spawn(
@@ -277,6 +280,7 @@ pub mod monitor {
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
+            check_file_path: "../tmp/check".to_owned(),
             rlimit_config: TEST_CONFIG,
         };
         let result = run_judge(&runner_config);
@@ -295,6 +299,7 @@ pub mod monitor {
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
+            check_file_path: "../tmp/check".to_owned(),
             rlimit_config: TEST_CONFIG,
         };
         let result = run_judge(&runner_config);
@@ -313,6 +318,7 @@ pub mod monitor {
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
+            check_file_path: "../tmp/check".to_owned(),
             rlimit_config: TEST_CONFIG,
         };
         let result = run_judge(&runner_config);
@@ -331,6 +337,7 @@ pub mod monitor {
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
+            check_file_path: "../tmp/check".to_owned(),
             rlimit_config: TEST_CONFIG,
         };
         let result = run_interact(

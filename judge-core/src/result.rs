@@ -47,6 +47,7 @@ pub fn check_checker_result(raw_info: &RawRunResultInfo) -> JudgeVerdict {
     let exit_status = raw_info.exit_status;
     match exit_status {
         0 => JudgeVerdict::Accepted,
+        256 => JudgeVerdict::WrongAnswer,
         _ => JudgeVerdict::SystemError,
     }
 }
