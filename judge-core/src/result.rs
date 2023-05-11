@@ -5,8 +5,8 @@ pub struct JudgeResultInfo {
     pub verdict: JudgeVerdict,
     pub time: i64,
     pub memory: i64,
-    pub exit_code: i32,
-    pub checker_exit_code: i32,
+    pub exit_status: i32,
+    pub checker_exit_status: i32,
 }
 
 #[derive(Debug, PartialEq)]

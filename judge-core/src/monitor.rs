@@ -49,8 +49,8 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>
             verdict,
             time: user_time,
             memory: max_mem,
-            exit_code: user_result.exit_code,
-            checker_exit_code: 0,
+            exit_status: user_result.exit_status,
+            checker_exit_status: 0,
         }));
     }
 
@@ -77,8 +77,8 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>
         verdict,
         time: user_time,
         memory: max_mem,
-        exit_code: user_result.exit_code,
-        checker_exit_code: checker_result.exit_code,
+        exit_status: user_result.exit_status,
+        checker_exit_status: checker_result.exit_status,
     }))
 }
 
