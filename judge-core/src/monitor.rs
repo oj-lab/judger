@@ -2,7 +2,9 @@ use crate::error::JudgeCoreError;
 use crate::result::{
     check_checker_result, check_user_result, get_max_mem, get_run_time, JudgeResultInfo,
 };
-use crate::sandbox::{ProcessListener, RawRunResultInfo, ResourceLimitConfig, SandBox};
+use crate::sandbox::{
+    ProcessListener, RawRunResultInfo, ResourceLimitConfig, SandBox, SCRIPT_LIMIT_CONFIG,
+};
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::sys::epoll::{
@@ -68,7 +70,7 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>
     let checker_spawn = checker_process.spawn(
         &runner_config.checker_path,
         &checker_args,
-        &runner_config.rlimit_config,
+        &SCRIPT_LIMIT_CONFIG,
     )?;
     if checker_spawn.is_none() {
         return Ok(None);
@@ -197,7 +199,7 @@ pub fn run_interact(
     let interact_spawn = interact_process.spawn_with_io(
         interactor_path,
         &interact_args,
-        &runner_config.rlimit_config,
+        &SCRIPT_LIMIT_CONFIG,
         interactor_read_proxy,
         interactor_write_proxy,
     )?;
@@ -248,7 +250,7 @@ pub fn run_interact(
     let checker_spawn = checker_process.spawn(
         &runner_config.checker_path,
         &checker_args,
-        &runner_config.rlimit_config,
+        &SCRIPT_LIMIT_CONFIG,
     )?;
 
     if checker_spawn.is_none() {

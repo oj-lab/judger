@@ -21,6 +21,14 @@ pub struct ResourceLimitConfig {
     pub fsize_limit: Option<(u64, u64)>,
 }
 
+pub const SCRIPT_LIMIT_CONFIG: ResourceLimitConfig = ResourceLimitConfig {
+    stack_limit: Some((16 * 1024 * 1024, 16 * 1024 * 1024)),
+    as_limit: Some((1024 * 1024 * 1024, 1024 * 1024 * 1024)),
+    cpu_limit: Some((60, 90)),
+    nproc_limit: Some((1, 1)),
+    fsize_limit: Some((1024, 1024)),
+};
+
 #[derive(Debug)]
 pub struct RawRunResultInfo {
     pub exit_status: c_int,
