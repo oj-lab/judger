@@ -1,0 +1,11 @@
+data:
+  binary_path: null
+  problem_id: null
+  data_dict: null
+  uid: null
+name: judger_worker_job
+type: job
+resource:
+  time_limit: null
+  memory_limit: null
+value: null

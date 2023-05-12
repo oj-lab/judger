@@ -1,0 +1,3 @@
+checkpoints: 4
+timelimit: 1500
+memorylimit: 2000

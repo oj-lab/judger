@@ -1,0 +1,6 @@
+data:
+  problem_id: null
+  submission_id: null
+name: judger_master_job
+type: job
+value: 1000000
