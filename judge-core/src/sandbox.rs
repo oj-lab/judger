@@ -21,6 +21,14 @@ pub struct ResourceLimitConfig {
     pub fsize_limit: Option<(u64, u64)>,
 }
 
+pub const SCRIPT_LIMIT_CONFIG: ResourceLimitConfig = ResourceLimitConfig {
+    stack_limit: Some((16 * 1024 * 1024, 16 * 1024 * 1024)),
+    as_limit: Some((1024 * 1024 * 1024, 1024 * 1024 * 1024)),
+    cpu_limit: Some((60, 90)),
+    nproc_limit: Some((1, 1)),
+    fsize_limit: Some((1024, 1024)),
+};
+
 #[derive(Debug)]
 pub struct RawRunResultInfo {
     pub exit_status: c_int,
@@ -110,7 +118,7 @@ impl SandBox {
         Ok(())
     }
 
-    pub fn wait(&self) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
+    pub fn wait(&self) -> Result<RawRunResultInfo, JudgeCoreError> {
         let mut status: c_int = 0;
         let mut usage: rusage = get_default_rusage();
         unsafe {
@@ -119,13 +127,13 @@ impl SandBox {
 
         log::info!("Detected process pid={} exit", self.child_pid);
 
-        Ok(Some(RawRunResultInfo {
+        Ok(RawRunResultInfo {
             exit_status: status,
             exit_signal: WTERMSIG(status),
             exit_code: WEXITSTATUS(status),
             real_time_cost: self.begin_time.elapsed(),
             resource_usage: usage,
-        }))
+        })
     }
 
     pub fn spawn(

@@ -1,5 +1,10 @@
 use crate::error::JudgeCoreError;
-use crate::sandbox::{ProcessListener, RawRunResultInfo, ResourceLimitConfig, SandBox};
+use crate::result::{
+    check_checker_result, check_user_result, get_max_mem, get_run_time, JudgeResultInfo,
+};
+use crate::sandbox::{
+    ProcessListener, RawRunResultInfo, ResourceLimitConfig, SandBox, SCRIPT_LIMIT_CONFIG,
+};
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::sys::epoll::{
@@ -15,10 +20,11 @@ pub struct RunnerConfig {
     pub input_file_path: String,
     pub output_file_path: String,
     pub answer_file_path: String,
+    pub check_file_path: String,
     pub rlimit_config: ResourceLimitConfig,
 }
 
-pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
+pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
     let mut user_process = SandBox::new(true)?;
     let input_file = File::open(&runner_config.input_file_path)?;
     let output_file = File::options()
@@ -38,7 +44,18 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<RawRunResultInfo
     if user_spawn.is_none() {
         return Ok(None);
     }
-    let _user_result = user_process.wait()?;
+    let user_result = user_process.wait()?;
+    let user_time = get_run_time(&user_result);
+    let max_mem = get_max_mem(&user_result);
+    if let Some(verdict) = check_user_result(&user_result) {
+        return Ok(Some(JudgeResultInfo {
+            verdict,
+            time: user_time,
+            memory: max_mem,
+            exit_status: user_result.exit_status,
+            checker_exit_status: 0,
+        }));
+    }
 
     let mut checker_process = SandBox::new(false)?;
     let first_args = String::from("");
@@ -47,18 +64,26 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<RawRunResultInfo
         &runner_config.input_file_path,
         &runner_config.output_file_path,
         &runner_config.answer_file_path,
+        &runner_config.check_file_path,
     ];
 
     let checker_spawn = checker_process.spawn(
         &runner_config.checker_path,
         &checker_args,
-        &runner_config.rlimit_config,
+        &SCRIPT_LIMIT_CONFIG,
     )?;
     if checker_spawn.is_none() {
         return Ok(None);
     }
     let checker_result = checker_process.wait()?;
-    Ok(checker_result)
+    let verdict = check_checker_result(&checker_result);
+    Ok(Some(JudgeResultInfo {
+        verdict,
+        time: user_time,
+        memory: max_mem,
+        exit_status: user_result.exit_status,
+        checker_exit_status: checker_result.exit_status,
+    }))
 }
 
 fn set_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
@@ -174,7 +199,7 @@ pub fn run_interact(
     let interact_spawn = interact_process.spawn_with_io(
         interactor_path,
         &interact_args,
-        &runner_config.rlimit_config,
+        &SCRIPT_LIMIT_CONFIG,
         interactor_read_proxy,
         interactor_write_proxy,
     )?;
@@ -219,29 +244,31 @@ pub fn run_interact(
         &runner_config.input_file_path,
         &runner_config.output_file_path,
         &runner_config.answer_file_path,
+        &runner_config.check_file_path,
     ];
     log::info!("Spawning checker process");
     let checker_spawn = checker_process.spawn(
         &runner_config.checker_path,
         &checker_args,
-        &runner_config.rlimit_config,
+        &SCRIPT_LIMIT_CONFIG,
     )?;
 
     if checker_spawn.is_none() {
         return Ok(None);
     }
     let checker_result = checker_process.wait()?;
-    Ok(checker_result)
+    Ok(Some(checker_result))
 }
 
 #[cfg(test)]
 pub mod monitor {
     use super::*;
+    use crate::result::JudgeVerdict;
     use crate::sandbox::ResourceLimitConfig;
 
     const TEST_CONFIG: ResourceLimitConfig = ResourceLimitConfig {
         stack_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
-        as_limit: Some((256 * 1024 * 1024, 256 * 1024 * 1024)),
+        as_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
         cpu_limit: Some((1, 2)),
         nproc_limit: Some((1, 1)),
         fsize_limit: Some((1024, 1024)),
@@ -255,12 +282,52 @@ pub mod monitor {
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
+            check_file_path: "../tmp/check".to_owned(),
             rlimit_config: TEST_CONFIG,
         };
         let result = run_judge(&runner_config);
         assert!(result.is_ok());
         if let Ok(Some(result)) = result {
             log::info!("{:?}", result);
+            assert_eq!(result.verdict, JudgeVerdict::Accepted);
+        }
+    }
+
+    #[test]
+    fn test_run_tle() {
+        let runner_config = RunnerConfig {
+            program_path: "./../test-collection/dist/programs/infinite_loop".to_owned(),
+            checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
+            input_file_path: "../tmp/in".to_owned(),
+            output_file_path: "../tmp/out".to_owned(),
+            answer_file_path: "../tmp/ans".to_owned(),
+            check_file_path: "../tmp/check".to_owned(),
+            rlimit_config: TEST_CONFIG,
+        };
+        let result = run_judge(&runner_config);
+        assert!(result.is_ok());
+        if let Ok(Some(result)) = result {
+            log::info!("{:?}", result);
+            assert_eq!(result.verdict, JudgeVerdict::TimeLimitExceeded);
+        }
+    }
+
+    #[test]
+    fn test_run_mle() {
+        let runner_config = RunnerConfig {
+            program_path: "./../test-collection/dist/programs/memory_limit".to_owned(),
+            checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
+            input_file_path: "../tmp/in".to_owned(),
+            output_file_path: "../tmp/out".to_owned(),
+            answer_file_path: "../tmp/ans".to_owned(),
+            check_file_path: "../tmp/check".to_owned(),
+            rlimit_config: TEST_CONFIG,
+        };
+        let result = run_judge(&runner_config);
+        assert!(result.is_ok());
+        if let Ok(Some(result)) = result {
+            log::info!("{:?}", result);
+            assert_eq!(result.verdict, JudgeVerdict::RuntimeError);
         }
     }
 
@@ -272,6 +339,7 @@ pub mod monitor {
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
+            check_file_path: "../tmp/check".to_owned(),
             rlimit_config: TEST_CONFIG,
         };
         let result = run_interact(
