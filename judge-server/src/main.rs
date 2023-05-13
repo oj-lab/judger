@@ -1,8 +1,18 @@
-use actix_web::{get, web, App, HttpServer, Responder};
+use actix_web::{App, HttpServer};
+use utoipa::OpenApi;
 
-#[get("/hello/{name}")]
-async fn greet(name: web::Path<String>) -> impl Responder {
-    format!("Hello {name}!")
+mod api {
+    use actix_web::{get, web, Responder};
+
+    #[utoipa::path(
+        responses(
+            (status = 200, description = "Hello {name}!", body = String)
+        )
+    )]
+    #[get("/hello/{name}")]
+    async fn greet(name: web::Path<String>) -> impl Responder {
+        format!("Hello {name}!")
+    }
 }
 
 #[actix_web::main] // or #[tokio::main]
@@ -15,7 +25,19 @@ async fn main() -> std::io::Result<()> {
         }
     });
 
-    HttpServer::new(|| App::new().service(greet))
+    #[derive(utoipa::OpenApi)]
+    #[openapi(paths(api::greet))]
+    struct ApiDoc;
+
+    HttpServer::new(|| App::new()
+            .service(api::greet)
+            .service(utoipa_swagger_ui::SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![
+                (
+                    utoipa_swagger_ui::Url::new("api", "/api-docs/openapi.json"),
+                    ApiDoc::openapi(),
+                ),
+            ]))
+        )
         .bind(("127.0.0.1", 8080))?
         .run()
         .await
