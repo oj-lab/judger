@@ -1,2 +1,2 @@
-/target
-grpcurl
+target/
+Cargo.lock
