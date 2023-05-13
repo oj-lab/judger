@@ -1,3 +1,4 @@
+mod environment;
 mod service;
 
 use actix_web::{App, HttpServer};
@@ -5,10 +6,15 @@ use utoipa::OpenApi;
 
 #[actix_web::main] // or #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    let opt = environment::load_option();
+    environment::setup_logger();
+    log::info!("{:?}", opt);
+
+    // Suppose to send heartbeat here to a remote host
     tokio::spawn(async move {
-        // Suppose to send heartbeat here to a remote host
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            log::debug!("JudgeSever heartbeat")
         }
     });
 
@@ -20,7 +26,7 @@ async fn main() -> std::io::Result<()> {
             )]),
         )
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("127.0.0.1", opt.port))?
     .run()
     .await
 }
