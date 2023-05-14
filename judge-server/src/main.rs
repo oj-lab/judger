@@ -13,7 +13,6 @@ use utoipa::OpenApi;
 async fn main() -> std::io::Result<()> {
     let opt = environment::load_option();
     environment::setup_logger();
-    log::info!("{:?}", opt);
 
     // Suppose to send heartbeat here to a remote host
     tokio::spawn(async move {

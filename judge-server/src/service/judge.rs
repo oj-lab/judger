@@ -3,10 +3,7 @@ use actix_web::{post, web, HttpResponse};
 use utoipa::ToSchema;
 
 #[derive(utoipa::OpenApi)]
-#[openapi(
-    paths(run_judge),
-    components(schemas(RunJudgeBody))
-)]
+#[openapi(paths(run_judge), components(schemas(RunJudgeBody)))]
 pub struct JudgeApiDoc;
 
 pub fn route(cfg: &mut web::ServiceConfig) {

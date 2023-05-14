@@ -21,7 +21,7 @@ pub enum ServiceError {
 
 #[derive(Serialize)]
 struct ServiceErrorBody {
-    msg: Option<String>
+    msg: Option<String>,
 }
 
 // impl ResponseError trait allows to convert our errors into http responses with appropriate data
@@ -30,31 +30,31 @@ impl ResponseError for ServiceError {
         match self {
             ServiceError::InternalError(ref err) => {
                 let response_body = ServiceErrorBody {
-                    msg: Some(format!("Internal Error: {}", err))
+                    msg: Some(format!("Internal Error: {}", err)),
                 };
                 HttpResponse::InternalServerError().json(response_body)
             }
             ServiceError::InternalErrorWithMsg(ref err, ref msg) => {
                 let response_body = ServiceErrorBody {
-                    msg: Some(format!("Internal Error: {}, Msg: {}", err, msg))
+                    msg: Some(format!("Internal Error: {}, Msg: {}", err, msg)),
                 };
                 HttpResponse::InternalServerError().json(response_body)
             }
             ServiceError::BadRequestWithMsg(ref err, ref msg) => {
                 let response_body = ServiceErrorBody {
-                    msg: Some(format!("BadRequest: {}, Msg: {}", err, msg))
+                    msg: Some(format!("BadRequest: {}, Msg: {}", err, msg)),
                 };
                 HttpResponse::BadRequest().json(response_body)
             }
             ServiceError::Unauthorized(ref err) => {
                 let response_body = ServiceErrorBody {
-                    msg: Some(format!("Unauthorized: {}", err))
+                    msg: Some(format!("Unauthorized: {}", err)),
                 };
                 HttpResponse::Unauthorized().json(response_body)
             }
             ServiceError::UnauthorizedWithMsg(ref err, ref msg) => {
                 let response_body = ServiceErrorBody {
-                    msg: Some(format!("Unauthorized: {}, Msg: {}", err, msg))
+                    msg: Some(format!("Unauthorized: {}, Msg: {}", err, msg)),
                 };
                 HttpResponse::Unauthorized().json(response_body)
             }
@@ -64,6 +64,6 @@ impl ResponseError for ServiceError {
 
 impl From<JudgeCoreError> for ServiceError {
     fn from(value: JudgeCoreError) -> Self {
-        return Self::InternalError(anyhow::anyhow!("{:?}", value))
+        Self::InternalError(anyhow::anyhow!("{:?}", value))
     }
 }
