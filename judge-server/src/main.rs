@@ -1,5 +1,10 @@
 mod environment;
+mod error;
 mod service;
+
+#[macro_use]
+extern crate serde_derive;
+extern crate lazy_static;
 
 use actix_web::{App, HttpServer};
 use utoipa::OpenApi;

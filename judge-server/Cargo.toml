@@ -32,7 +32,7 @@ serde_json = "1"
 chrono = { version = "0.4", features = ["serde"] }
 
 # error handling
-anyhow = "1.0"
-
+anyhow = "1"
+thiserror = "1"
 
 judge-core = { path = "../judge-core" }
