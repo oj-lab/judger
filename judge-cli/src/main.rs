@@ -32,6 +32,8 @@ fn main() {
             let output = compiler.compile(&source, &target);
             println!("{:?}", output)
         }
-        None => {}
+        None => {
+            print!("Got None")
+        }
     }
 }

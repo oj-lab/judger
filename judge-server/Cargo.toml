@@ -5,19 +5,34 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[[bin]]
-name = "helloworld-server"
-path = "src/server.rs"
-
-[[bin]]
-name = "helloworld-client"
-path = "src/client.rs"
-
 [dependencies]
+# Async runtime
 tokio = { version = "1", features = ["full"] }
-tonic = { version = "0.8", features = ["tls"] }
-tokio-stream = "0.1"
-prost = "0.11.3"
 
-[build-dependencies]
-tonic-build = { version = "0.8", features = ["prost"] }
+# Web framework
+actix-web = "4"
+
+# Openapi generate
+utoipa = { version = "3", features = ["actix_extras"] }
+utoipa-swagger-ui = { version = "3", features = ["actix-web"] }
+
+# Support global variable
+lazy_static = "1.4"
+
+# Log & settings
+log = "0.4"
+env_logger = "0.10"
+dotenv = "0.15.0"
+structopt = "0.3"
+
+# Serialization & data structure
+serde = "1"
+serde_derive = "1"
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+
+# error handling
+anyhow = "1"
+thiserror = "1"
+
+judge-core = { path = "../judge-core" }
