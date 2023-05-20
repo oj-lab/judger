@@ -6,7 +6,6 @@ use std::io;
 #[derive(Debug)]
 pub enum JudgeCoreError {
     NixErrno(Errno),
-    NixErrnoWithMsg(Errno, String),
     SeccompError(SeccompError),
     FFINulError(NulError),
     IOError(io::Error),
@@ -15,12 +14,6 @@ pub enum JudgeCoreError {
 impl From<Errno> for JudgeCoreError {
     fn from(error: Errno) -> JudgeCoreError {
         JudgeCoreError::NixErrno(error)
-    }
-}
-
-impl From<(Errno, String)> for JudgeCoreError {
-    fn from((error, msg): (Errno, String)) -> JudgeCoreError {
-        JudgeCoreError::NixErrnoWithMsg(error, msg)
     }
 }
 

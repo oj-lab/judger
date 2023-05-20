@@ -7,12 +7,12 @@ use nix::sys::resource::{
 };
 use nix::unistd::{dup2, execve};
 use nix::unistd::{fork, write, ForkResult};
-use std::ffi::CString;
+use std::{ffi::CString, convert::Infallible};
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::time::{Duration, Instant};
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ResourceLimitConfig {
     pub stack_limit: Option<(u64, u64)>,
     pub as_limit: Option<(u64, u64)>,
@@ -48,9 +48,10 @@ pub struct SandBox {
 
 impl SandBox {
     pub fn new(restricted: bool) -> Result<Self, JudgeCoreError> {
+        log::debug!("Create sandbox with restricted={}", restricted);
         let mut filter = match restricted {
-            true => ScmpFilterContext::new_filter(ScmpAction::KillProcess).unwrap(),
-            false => ScmpFilterContext::new_filter(ScmpAction::Allow).unwrap(),
+            true => ScmpFilterContext::new_filter(ScmpAction::KillProcess)?,
+            false => ScmpFilterContext::new_filter(ScmpAction::Allow)?,
         };
         if restricted {
             let white_list: Vec<&str> = vec![
@@ -77,7 +78,9 @@ impl SandBox {
                 "openat",
             ];
             for s in white_list.iter() {
+                log::debug!("Add syscall {} to white list.", s);
                 let syscall = ScmpSyscall::from_name(s)?;
+                log::debug!("Add syscall {} to white list.", syscall);
                 filter.add_rule_exact(ScmpAction::Allow, syscall)?;
             }
         }
@@ -107,12 +110,15 @@ impl SandBox {
 
     pub fn set_limit(&self, config: &ResourceLimitConfig) -> Result<(), JudgeCoreError> {
         if let Some(stack_limit) = config.stack_limit {
+            log::debug!("Set stack limit: {:?}", stack_limit);
             setrlimit(RLIMIT_STACK, stack_limit.0, stack_limit.1)?;
         }
         if let Some(as_limit) = config.as_limit {
+            log::debug!("Set as limit: {:?}", as_limit);
             setrlimit(RLIMIT_AS, as_limit.0, as_limit.1)?;
         }
         if let Some(cpu_limit) = config.cpu_limit {
+            log::debug!("Set cpu limit: {:?}", cpu_limit);
             setrlimit(RLIMIT_CPU, cpu_limit.0, cpu_limit.1)?;
         }
         Ok(())
@@ -158,8 +164,9 @@ impl SandBox {
             }
             Ok(ForkResult::Child) => {
                 // Unsafe to use `println!` (or `unwrap`) here. See Safety.
-
+                log::debug!("Set up io in: {}, out: {}", self.stdin_raw_fd, self.stdout_raw_fd);
                 self.set_limit(rlimit_config)?;
+                log::debug!("Set up limit: {:?}", rlimit_config);
                 self.exec(runner_cmd, runner_args)?;
 
                 Ok(None)
@@ -197,7 +204,9 @@ impl SandBox {
             Ok(ForkResult::Child) => {
                 // Unsafe to use `println!` (or `unwrap`) here. See Safety.
                 self.set_io(input_raw_fd, output_raw_fd);
+                log::debug!("Set up io in: {}, out: {}", input_raw_fd, output_raw_fd);
                 self.set_limit(rlimit_config)?;
+                log::debug!("Set up limit: {:?}", rlimit_config);
                 self.exec(runner_cmd, runner_args)?;
 
                 Ok(None)
@@ -210,23 +219,20 @@ impl SandBox {
         }
     }
 
-    pub fn exec(&self, command: &str, args: &[&String]) -> Result<(), JudgeCoreError> {
+    pub fn exec(&self, command: &str, args: &[&String]) -> Result<Infallible, JudgeCoreError> {
+        log::debug!("Exec command: {}", command);
         self.filter.load()?;
+        log::debug!("Preparing args for execve");
         let c_args = args
             .iter()
             .map(|s| CString::new(s.as_bytes()))
             .collect::<Result<Vec<_>, _>>()?;
-        match execve(
+        log::debug!("Running execve with c_args={:?}", c_args);
+        Ok(execve(
             &CString::new(command)?,
             c_args.as_slice(),
             &[CString::new("")?],
-        ) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(
-                e,
-                "sandbox exec failed".to_string(),
-            )),
-        }
+        )?)
     }
 }
 
@@ -240,6 +246,7 @@ pub struct ProcessListener {
 
 impl ProcessListener {
     pub fn new(restricted: bool) -> Result<Self, JudgeCoreError> {
+        log::debug!("Create process listener with restricted={}", restricted);
         let sandbox = SandBox::new(restricted)?;
         let pid = -1;
         let begin_time = Instant::now();
@@ -285,9 +292,11 @@ impl ProcessListener {
                 Ok(Some(()))
             }
             Ok(ForkResult::Child) => {
+                log::debug!("Child process {} start.", self.pid);
                 let process = self.sandbox.spawn(runner_cmd, runner_args, rlimit_config)?;
                 if process.is_some() {
                     // listen to the status of sandbox
+                    log::debug!("Wait for process {}.", self.pid);
                     let _result = self.sandbox.wait()?;
                     // how to send the result to parent???
                 }
@@ -315,6 +324,7 @@ impl ProcessListener {
                 Ok(Some(()))
             }
             Ok(ForkResult::Child) => {
+                log::debug!("Child process {} start.", self.pid);
                 let process = self.sandbox.spawn_with_io(
                     runner_cmd,
                     runner_args,
@@ -324,6 +334,7 @@ impl ProcessListener {
                 )?;
                 if process.is_some() {
                     // listen to the status of sandbox
+                    log::debug!("Wait for process {}.", self.pid);
                     let _result = self.sandbox.wait()?;
                     self.pid = self.sandbox.child_pid;
                     self.report_exit();

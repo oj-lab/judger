@@ -25,15 +25,18 @@ pub struct RunnerConfig {
 }
 
 pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
+    log::debug!("Creating sandbox for user process");
     let mut user_process = SandBox::new(true)?;
+    log::debug!("Opening input file path={}", runner_config.input_file_path);
     let input_file = File::open(&runner_config.input_file_path)?;
+    log::debug!("Opening output file path={}", runner_config.output_file_path);
     let output_file = File::options()
         .write(true)
         .truncate(true) // Overwrite the whole content of this file
-        .open(&runner_config.output_file_path)
-        .unwrap();
+        .open(&runner_config.output_file_path)?;
     let input_raw_fd: RawFd = input_file.as_raw_fd();
     let output_raw_fd: RawFd = output_file.as_raw_fd();
+    log::debug!("Spawning user process");
     let user_spawn = user_process.spawn_with_io(
         &runner_config.program_path,
         &[&String::from("")],
@@ -44,6 +47,7 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>
     if user_spawn.is_none() {
         return Ok(None);
     }
+    log::debug!("Waiting for user process");
     let user_result = user_process.wait()?;
     let user_time = get_run_time(&user_result);
     let max_mem = get_max_mem(&user_result);
@@ -57,6 +61,7 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>
         }));
     }
 
+    log::debug!("Creating sandbox for checker process");
     let mut checker_process = SandBox::new(false)?;
     let first_args = String::from("");
     let checker_args = vec![
@@ -66,7 +71,7 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>
         &runner_config.answer_file_path,
         &runner_config.check_file_path,
     ];
-
+    log::debug!("Spawning checker process");
     let checker_spawn = checker_process.spawn(
         &runner_config.checker_path,
         &checker_args,
@@ -75,6 +80,7 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>
     if checker_spawn.is_none() {
         return Ok(None);
     }
+    log::debug!("Waiting for checker process");
     let checker_result = checker_process.wait()?;
     let verdict = check_checker_result(&checker_result);
     Ok(Some(JudgeResultInfo {
@@ -87,13 +93,8 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>
 }
 
 fn set_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
-    match fcntl(fd, FcntlArg::F_SETFL(OFlag::O_NONBLOCK)) {
-        Ok(v) => Ok(v),
-        Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(
-            e,
-            "failed to set non-blocking".to_string(),
-        )),
-    }
+    log::debug!("Setting fd={} to non blocking", fd);
+    Ok(fcntl(fd, FcntlArg::F_SETFL(OFlag::O_NONBLOCK))?)
 }
 
 // write the content of `from` to `to`, record to output
@@ -102,7 +103,7 @@ fn pump_proxy_pipe(from: RawFd, to: RawFd, output: RawFd) {
     loop {
         match read(from, &mut buf) {
             Ok(nread) => {
-                log::info!("{} read. {} -> {}", nread, from, to);
+                log::debug!("{} read. {} -> {}", nread, from, to);
                 write(to, &buf[..nread]).ok();
                 write(output, &buf[..nread]).ok();
             }
@@ -123,28 +124,20 @@ pub fn run_interact(
 ) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
     fn add_epoll_fd(epoll_fd: RawFd, fd: RawFd) -> Result<(), JudgeCoreError> {
         let mut event = EpollEvent::new(EpollFlags::EPOLLIN, fd as u64);
-        match epoll_ctl(epoll_fd, EpollOp::EpollCtlAdd, fd, Some(&mut event)) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(
-                e,
-                "Failed to add fd to epoll".to_string(),
-            )),
-        }
+        log::debug!("Adding fd={} to epoll", fd);
+        Ok(epoll_ctl(epoll_fd, EpollOp::EpollCtlAdd, fd, Some(&mut event))?)
     }
-
+    log::debug!("Creating sandbox for user process");
     let mut user_process = ProcessListener::new(true)?;
+    log::debug!("Creating sandbox for interactor process");
     let mut interact_process = ProcessListener::new(false)?;
 
     fn create_pipe() -> Result<(RawFd, RawFd), JudgeCoreError> {
-        match pipe() {
-            Ok((read_fd, write_fd)) => Ok((read_fd, write_fd)),
-            Err(e) => Err(JudgeCoreError::NixErrnoWithMsg(
-                e,
-                "Failed to create pipe".to_string(),
-            )),
-        }
+        log::debug!("Creating pipe");
+        Ok(pipe()?)
     }
 
+    log::debug!("Creating pipes");
     let (proxy_read_user, user_write_proxy) = create_pipe()?;
     let (proxy_read_interactor, interactor_write_proxy) = create_pipe()?;
     let (user_read_proxy, proxy_write_user) = create_pipe()?;
@@ -152,30 +145,36 @@ pub fn run_interact(
 
     // epoll will listen to the write event
     // when should it be non blocking???
+    log::debug!("Setting pipes to non blocking");
     set_non_blocking(user_write_proxy)?;
     set_non_blocking(interactor_write_proxy)?;
     set_non_blocking(proxy_read_user)?;
     set_non_blocking(proxy_read_interactor)?;
 
+    log::debug!("Creating epoll");
     let epoll_fd = epoll_create1(EpollCreateFlags::EPOLL_CLOEXEC)?;
 
+    log::debug!("Adding fds to epoll");
     add_epoll_fd(epoll_fd, proxy_read_user)?;
     add_epoll_fd(epoll_fd, proxy_read_interactor)?;
 
+    log::debug!("Creating exit pipes");
     let (user_exit_read, user_exit_write) = create_pipe()?;
     let (interactor_exit_read, interactor_exit_write) = create_pipe()?;
 
+    log::debug!("Adding exit fds to epoll");
     add_epoll_fd(epoll_fd, user_exit_read)?;
     add_epoll_fd(epoll_fd, interactor_exit_read)?;
     user_process.set_exit_fd(user_exit_write, 41u8);
     interact_process.set_exit_fd(interactor_exit_write, 42u8);
 
+    log::debug!("Opening input file path={}", runner_config.input_file_path);
     let output_file = File::options()
         .write(true)
         .truncate(true) // Overwrite the whole content of this file
         .open(output_path)?;
     let output_raw_fd: RawFd = output_file.as_raw_fd();
-    log::info!("Spawning user process");
+    log::debug!("Spawning user process");
     let user_spawn = user_process.spawn_with_io(
         &runner_config.program_path,
         &[&String::from("")],
@@ -195,7 +194,7 @@ pub fn run_interact(
         &runner_config.output_file_path,
         &runner_config.answer_file_path,
     ];
-    log::info!("Spawning interactor process");
+    log::debug!("Spawning interactor process");
     let interact_spawn = interact_process.spawn_with_io(
         interactor_path,
         &interact_args,
@@ -211,12 +210,12 @@ pub fn run_interact(
     let mut events = [EpollEvent::empty(); 128];
     loop {
         let num_events = epoll_wait(epoll_fd, &mut events, -1)?;
-        log::info!("{} events found!", num_events);
+        log::debug!("{} events found!", num_events);
         let mut exited = false;
         for event in events.iter().take(num_events) {
             let fd = event.data() as RawFd;
             if fd == user_exit_read || fd == interactor_exit_read {
-                log::info!("{:?} fd exited", fd);
+                log::debug!("{:?} fd exited", fd);
                 exited = true;
                 break;
             }
@@ -231,12 +230,12 @@ pub fn run_interact(
         }
     }
 
-    log::info!("Epoll finished!");
+    log::debug!("Epoll finished!");
 
     // TODO: get result from listener
     // let _user_result = user_process.wait()?;
     // let _interact_result = interact_process.wait()?;
-
+    log::debug!("Creating sandbox for checker process");
     let mut checker_process = SandBox::new(false)?;
     // the checker will compare the output of interactor with answer file
     let checker_args = vec![
@@ -246,16 +245,16 @@ pub fn run_interact(
         &runner_config.answer_file_path,
         &runner_config.check_file_path,
     ];
-    log::info!("Spawning checker process");
+    log::debug!("Spawning checker process");
     let checker_spawn = checker_process.spawn(
         &runner_config.checker_path,
         &checker_args,
         &SCRIPT_LIMIT_CONFIG,
     )?;
-
     if checker_spawn.is_none() {
         return Ok(None);
     }
+    log::debug!("Waiting for checker process");
     let checker_result = checker_process.wait()?;
     Ok(Some(checker_result))
 }
@@ -288,7 +287,7 @@ pub mod monitor {
         let result = run_judge(&runner_config);
         assert!(result.is_ok());
         if let Ok(Some(result)) = result {
-            log::info!("{:?}", result);
+            log::debug!("{:?}", result);
             assert_eq!(result.verdict, JudgeVerdict::Accepted);
         }
     }
@@ -307,7 +306,7 @@ pub mod monitor {
         let result = run_judge(&runner_config);
         assert!(result.is_ok());
         if let Ok(Some(result)) = result {
-            log::info!("{:?}", result);
+            log::debug!("{:?}", result);
             assert_eq!(result.verdict, JudgeVerdict::TimeLimitExceeded);
         }
     }
@@ -326,7 +325,7 @@ pub mod monitor {
         let result = run_judge(&runner_config);
         assert!(result.is_ok());
         if let Ok(Some(result)) = result {
-            log::info!("{:?}", result);
+            log::debug!("{:?}", result);
             assert_eq!(result.verdict, JudgeVerdict::RuntimeError);
         }
     }
@@ -349,10 +348,10 @@ pub mod monitor {
         );
         match result {
             Ok(Some(result)) => {
-                log::info!("{:?}", result);
+                log::debug!("{:?}", result);
             }
             Ok(None) => {
-                log::info!("Ignoring this result, for it's from a fork child process");
+                log::debug!("Ignoring this result, for it's from a fork child process");
             }
             Err(e) => {
                 log::error!("meet error: {:?}", e);
