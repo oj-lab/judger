@@ -9,6 +9,7 @@ pub enum JudgeCoreError {
     SeccompError(SeccompError),
     FFINulError(NulError),
     IOError(io::Error),
+    AnyhowError(anyhow::Error),
 }
 
 impl From<Errno> for JudgeCoreError {
@@ -32,5 +33,11 @@ impl From<NulError> for JudgeCoreError {
 impl From<io::Error> for JudgeCoreError {
     fn from(error: io::Error) -> JudgeCoreError {
         JudgeCoreError::IOError(error)
+    }
+}
+
+impl From<anyhow::Error> for JudgeCoreError {
+    fn from(error: anyhow::Error) -> JudgeCoreError {
+        JudgeCoreError::AnyhowError(error)
     }
 }
