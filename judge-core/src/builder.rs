@@ -1,8 +1,11 @@
-use std::{path::PathBuf, fs};
+use std::{fs, path::PathBuf};
 
 use anyhow::anyhow;
 
-use crate::{compiler::{Compiler, Language}, error::JudgeCoreError};
+use crate::{
+    compiler::{Compiler, Language},
+    error::JudgeCoreError,
+};
 
 pub enum PackageType {
     ICPC,
@@ -37,9 +40,7 @@ impl JudgeBuilder {
 
     pub fn build(&mut self) -> Result<(), JudgeCoreError> {
         match self.package_type {
-            PackageType::ICPC => {
-                self.build_icpc()
-            }
+            PackageType::ICPC => self.build_icpc(),
         }
     }
 
@@ -65,14 +66,24 @@ impl JudgeBuilder {
             let entry = entry?;
             let path = entry.path();
             if path.is_file() {
-                fs::copy(&path, self.runtime_path.join("data/secret").join(path.file_name().unwrap()))?;
+                fs::copy(
+                    &path,
+                    self.runtime_path
+                        .join("data/secret")
+                        .join(path.file_name().unwrap()),
+                )?;
             }
         }
         if self.src_path.exists() {
-            let compiler = Compiler::new(self.src_language.clone(), vec![]);
-            compiler.compile(&self.src_path.to_str().unwrap(), &self.runtime_path.join("program").to_str().unwrap())?;
+            let compiler = Compiler::new(self.src_language, vec![]);
+            compiler.compile(
+                self.src_path.to_str().unwrap(),
+                self.runtime_path.join("program").to_str().unwrap(),
+            )?;
         } else {
-            return Err(JudgeCoreError::AnyhowError(anyhow!("Source file not found")));
+            return Err(JudgeCoreError::AnyhowError(anyhow!(
+                "Source file not found"
+            )));
         }
 
         self.built = true;
