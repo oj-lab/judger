@@ -1,6 +1,7 @@
 pub mod builder;
 pub mod compiler;
 pub mod error;
+pub mod executor;
 pub mod monitor;
 pub mod result;
 pub mod sandbox;

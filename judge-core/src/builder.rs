@@ -75,7 +75,7 @@ impl JudgeBuilder {
             }
         }
         if self.src_path.exists() {
-            let compiler = Compiler::new(self.src_language.clone(), vec![]);
+            let compiler = Compiler::new(self.src_language, vec![]);
             compiler.compile(
                 self.src_path.to_str().unwrap(),
                 self.runtime_path.join("program").to_str().unwrap(),

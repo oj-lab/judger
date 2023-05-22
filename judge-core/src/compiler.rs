@@ -4,7 +4,7 @@ use anyhow::anyhow;
 use std::fmt;
 use std::{process::Command, str::FromStr};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Copy)]
 pub enum Language {
     Rust,
     Cpp,
@@ -48,13 +48,13 @@ impl Compiler {
         let compiler_name = match language {
             Language::Rust => "rustc {src_path} -o {target_path}".to_string(),
             Language::Cpp => "g++ {src_path} -o {target_path}".to_string(),
-            Language::Python => panic!("Cannot be compiled"),
+            Language::Python => "cp {src_path} {target_path}".to_string(),
             // add other supported language
         };
         let template_args = match language {
             Language::Rust => vec!["{src_path}".to_string(), "{target_path}".to_string()],
             Language::Cpp => vec!["{src_path}".to_string(), "{target_path}".to_string()],
-            Language::Python => panic!("Cannot be compiled"),
+            Language::Python => vec!["{src_path}".to_string(), "{target_path}".to_string()],
             // add other supported language
         };
         let command = TemplateCommand::new(compiler_name, template_args);
@@ -108,6 +108,21 @@ pub mod compiler {
         match compiler.compile(
             "../test-collection/src/programs/infinite_loop.cpp",
             "../tmp/infinite_loop_test",
+        ) {
+            Ok(out) => {
+                log::info!("{}", out);
+            }
+            Err(e) => panic!("{:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_compile_py() {
+        init();
+        let compiler = Compiler::new(Language::Python, vec![]);
+        match compiler.compile(
+            "../test-collection/src/programs/read_and_write.py",
+            "../tmp/read_and_write",
         ) {
             Ok(out) => {
                 log::info!("{}", out);

@@ -1,4 +1,6 @@
+use crate::compiler::Language;
 use crate::error::JudgeCoreError;
+use crate::executor::Executor;
 use crate::result::{
     check_checker_result, check_user_result, get_max_mem, get_run_time, JudgeResultInfo,
 };
@@ -15,6 +17,7 @@ use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
 
 pub struct RunnerConfig {
+    pub language: Language,
     pub program_path: String,
     pub checker_path: String,
     pub input_file_path: String,
@@ -40,9 +43,13 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>
     let input_raw_fd: RawFd = input_file.as_raw_fd();
     let output_raw_fd: RawFd = output_file.as_raw_fd();
     log::debug!("Spawning user process");
+    let user_executor = Executor::new(
+        runner_config.language,
+        runner_config.program_path.to_owned(),
+        vec![String::from("")],
+    );
     let user_spawn = user_process.spawn_with_io(
-        &runner_config.program_path,
-        &[&String::from("")],
+        user_executor,
         &runner_config.rlimit_config,
         input_raw_fd,
         output_raw_fd,
@@ -68,18 +75,19 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>
     let mut checker_process = SandBox::new(false)?;
     let first_args = String::from("");
     let checker_args = vec![
-        &first_args,
-        &runner_config.input_file_path,
-        &runner_config.output_file_path,
-        &runner_config.answer_file_path,
-        &runner_config.check_file_path,
+        first_args,
+        runner_config.input_file_path.to_owned(),
+        runner_config.output_file_path.to_owned(),
+        runner_config.answer_file_path.to_owned(),
+        runner_config.check_file_path.to_owned(),
     ];
+    let checker_executor = Executor::new(
+        Language::Cpp,
+        runner_config.checker_path.to_owned(),
+        checker_args,
+    );
     log::debug!("Spawning checker process");
-    let checker_spawn = checker_process.spawn(
-        &runner_config.checker_path,
-        &checker_args,
-        &SCRIPT_LIMIT_CONFIG,
-    )?;
+    let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG)?;
     if checker_spawn.is_none() {
         return Ok(None);
     }
@@ -183,9 +191,13 @@ pub fn run_interact(
         .open(output_path)?;
     let output_raw_fd: RawFd = output_file.as_raw_fd();
     log::debug!("Spawning user process");
+    let user_executor = Executor::new(
+        runner_config.language,
+        runner_config.program_path.to_owned(),
+        vec![String::from("")],
+    );
     let user_spawn = user_process.spawn_with_io(
-        &runner_config.program_path,
-        &[&String::from("")],
+        user_executor,
         &runner_config.rlimit_config,
         user_read_proxy,
         user_write_proxy,
@@ -197,15 +209,16 @@ pub fn run_interact(
 
     let first_args = String::from("");
     let interact_args = vec![
-        &first_args,
-        &runner_config.input_file_path,
-        &runner_config.output_file_path,
-        &runner_config.answer_file_path,
+        first_args.to_owned(),
+        runner_config.input_file_path.to_owned(),
+        runner_config.output_file_path.to_owned(),
+        runner_config.answer_file_path.to_owned(),
     ];
+    let interact_executor =
+        Executor::new(Language::Cpp, interactor_path.to_string(), interact_args);
     log::debug!("Spawning interactor process");
     let interact_spawn = interact_process.spawn_with_io(
-        interactor_path,
-        &interact_args,
+        interact_executor,
         &SCRIPT_LIMIT_CONFIG,
         interactor_read_proxy,
         interactor_write_proxy,
@@ -247,18 +260,19 @@ pub fn run_interact(
     let mut checker_process = SandBox::new(false)?;
     // the checker will compare the output of interactor with answer file
     let checker_args = vec![
-        &first_args,
-        &runner_config.input_file_path,
-        &runner_config.output_file_path,
-        &runner_config.answer_file_path,
-        &runner_config.check_file_path,
+        first_args,
+        runner_config.input_file_path.to_owned(),
+        runner_config.output_file_path.to_owned(),
+        runner_config.answer_file_path.to_owned(),
+        runner_config.check_file_path.to_owned(),
     ];
+    let checker_executor = Executor::new(
+        Language::Cpp,
+        runner_config.checker_path.to_owned(),
+        checker_args,
+    );
     log::debug!("Spawning checker process");
-    let checker_spawn = checker_process.spawn(
-        &runner_config.checker_path,
-        &checker_args,
-        &SCRIPT_LIMIT_CONFIG,
-    )?;
+    let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG)?;
     if checker_spawn.is_none() {
         return Ok(None);
     }
@@ -270,6 +284,7 @@ pub fn run_interact(
 #[cfg(test)]
 pub mod monitor {
     use super::*;
+    use crate::compiler::Language;
     use crate::result::JudgeVerdict;
     use crate::sandbox::ResourceLimitConfig;
 
@@ -284,6 +299,7 @@ pub mod monitor {
     #[test]
     fn test_run_judge() {
         let runner_config = RunnerConfig {
+            language: Language::Cpp,
             program_path: "./../test-collection/dist/programs/read_and_write".to_owned(),
             checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
             input_file_path: "../tmp/in".to_owned(),
@@ -303,6 +319,7 @@ pub mod monitor {
     #[test]
     fn test_run_tle() {
         let runner_config = RunnerConfig {
+            language: Language::Cpp,
             program_path: "./../test-collection/dist/programs/infinite_loop".to_owned(),
             checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
             input_file_path: "../tmp/in".to_owned(),
@@ -322,6 +339,7 @@ pub mod monitor {
     #[test]
     fn test_run_mle() {
         let runner_config = RunnerConfig {
+            language: Language::Cpp,
             program_path: "./../test-collection/dist/programs/memory_limit".to_owned(),
             checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
             input_file_path: "../tmp/in".to_owned(),
@@ -341,6 +359,7 @@ pub mod monitor {
     #[test]
     fn test_run_interact() {
         let runner_config = RunnerConfig {
+            language: Language::Cpp,
             program_path: "./../test-collection/dist/programs/read_and_write".to_owned(),
             checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
             input_file_path: "../tmp/in".to_owned(),
