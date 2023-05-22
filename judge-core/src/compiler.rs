@@ -1,6 +1,8 @@
+use crate::error::JudgeCoreError;
 use crate::utils::TemplateCommand;
 use std::fmt;
 use std::{process::Command, str::FromStr};
+use anyhow::anyhow;
 
 #[derive(Clone)]
 pub enum Language {
@@ -63,7 +65,7 @@ impl Compiler {
         }
     }
 
-    pub fn compile(&self, src_path: &str, target_path: &str) -> Result<String, String> {
+    pub fn compile(&self, src_path: &str, target_path: &str) -> Result<String, JudgeCoreError> {
         log::info!(
             "Compiling language={} src={} target={}",
             self.language,
@@ -78,8 +80,7 @@ impl Compiler {
                     .get_command(vec![src_path.to_string(), target_path.to_string()]),
             )
             .args(self.compiler_args.iter())
-            .output()
-            .map_err(|e| format!("Failed to execute compiler: {}", e))?;
+            .output()?;
         if output.status.success() {
             let compile_output = String::from_utf8_lossy(&output.stdout).to_string();
             log::info!("Compile output: {}", compile_output);
@@ -87,7 +88,7 @@ impl Compiler {
         } else {
             let error_output = String::from_utf8_lossy(&output.stderr).to_string();
             log::error!("Compile error: {}", error_output);
-            Err(error_output)
+            Err(JudgeCoreError::AnyhowError(anyhow!(error_output)))
         }
     }
 }
