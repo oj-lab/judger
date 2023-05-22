@@ -7,10 +7,10 @@ use nix::sys::resource::{
 };
 use nix::unistd::{dup2, execve};
 use nix::unistd::{fork, write, ForkResult};
-use std::{ffi::CString, convert::Infallible};
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::time::{Duration, Instant};
+use std::{convert::Infallible, ffi::CString};
 
 #[derive(Default, Debug)]
 pub struct ResourceLimitConfig {
@@ -164,7 +164,11 @@ impl SandBox {
             }
             Ok(ForkResult::Child) => {
                 // Unsafe to use `println!` (or `unwrap`) here. See Safety.
-                log::debug!("Set up io in: {}, out: {}", self.stdin_raw_fd, self.stdout_raw_fd);
+                log::debug!(
+                    "Set up io in: {}, out: {}",
+                    self.stdin_raw_fd,
+                    self.stdout_raw_fd
+                );
                 self.set_limit(rlimit_config)?;
                 log::debug!("Set up limit: {:?}", rlimit_config);
                 self.exec(runner_cmd, runner_args)?;

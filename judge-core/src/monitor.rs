@@ -29,7 +29,10 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>
     let mut user_process = SandBox::new(true)?;
     log::debug!("Opening input file path={}", runner_config.input_file_path);
     let input_file = File::open(&runner_config.input_file_path)?;
-    log::debug!("Opening output file path={}", runner_config.output_file_path);
+    log::debug!(
+        "Opening output file path={}",
+        runner_config.output_file_path
+    );
     let output_file = File::options()
         .write(true)
         .truncate(true) // Overwrite the whole content of this file
@@ -125,7 +128,12 @@ pub fn run_interact(
     fn add_epoll_fd(epoll_fd: RawFd, fd: RawFd) -> Result<(), JudgeCoreError> {
         let mut event = EpollEvent::new(EpollFlags::EPOLLIN, fd as u64);
         log::debug!("Adding fd={} to epoll", fd);
-        Ok(epoll_ctl(epoll_fd, EpollOp::EpollCtlAdd, fd, Some(&mut event))?)
+        Ok(epoll_ctl(
+            epoll_fd,
+            EpollOp::EpollCtlAdd,
+            fd,
+            Some(&mut event),
+        )?)
     }
     log::debug!("Creating sandbox for user process");
     let mut user_process = ProcessListener::new(true)?;

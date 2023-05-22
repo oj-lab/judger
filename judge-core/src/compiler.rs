@@ -1,8 +1,8 @@
 use crate::error::JudgeCoreError;
 use crate::utils::TemplateCommand;
+use anyhow::anyhow;
 use std::fmt;
 use std::{process::Command, str::FromStr};
-use anyhow::anyhow;
 
 #[derive(Clone)]
 pub enum Language {
