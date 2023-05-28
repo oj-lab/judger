@@ -2,8 +2,9 @@ use crate::compiler::Language;
 use crate::error::JudgeCoreError;
 use crate::executor::Executor;
 use crate::result::{
-    check_checker_result, check_user_result, get_max_mem, get_run_time, JudgeResultInfo,
+    check_checker_result, check_user_result, get_max_mem, get_run_time, JudgeResultInfo, JudgeVerdict,
 };
+use crate::utils::compare_files;
 use crate::sandbox::{
     ProcessListener, RawRunResultInfo, ResourceLimitConfig, SandBox, SCRIPT_LIMIT_CONFIG,
 };
@@ -15,11 +16,12 @@ use nix::sys::epoll::{
 use nix::unistd::{pipe, read, write};
 use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
+use std::path::PathBuf;
 
 pub struct RunnerConfig {
     pub language: Language,
     pub program_path: String,
-    pub checker_path: String,
+    pub maybe_checker_path: Option<String>,
     pub input_file_path: String,
     pub output_file_path: String,
     pub answer_file_path: String,
@@ -72,35 +74,54 @@ pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>
     }
 
     log::debug!("Creating sandbox for checker process");
-    let mut checker_process = SandBox::new(false)?;
-    let first_args = String::from("");
-    let checker_args = vec![
-        first_args,
-        runner_config.input_file_path.to_owned(),
-        runner_config.output_file_path.to_owned(),
-        runner_config.answer_file_path.to_owned(),
-        runner_config.check_file_path.to_owned(),
-    ];
-    let checker_executor = Executor::new(
-        Language::Cpp,
-        runner_config.checker_path.to_owned(),
-        checker_args,
-    );
-    log::debug!("Spawning checker process");
-    let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG)?;
-    if checker_spawn.is_none() {
-        return Ok(None);
+    if let Some(checker_path) = runner_config.maybe_checker_path.clone() {
+        let mut checker_process = SandBox::new(false)?;
+        let first_args = String::from("");
+        let checker_args = vec![
+            first_args,
+            runner_config.input_file_path.to_owned(),
+            runner_config.output_file_path.to_owned(),
+            runner_config.answer_file_path.to_owned(),
+            runner_config.check_file_path.to_owned(),
+        ];
+        let checker_executor = Executor::new(Language::Cpp, checker_path, checker_args);
+        log::debug!("Spawning checker process");
+        let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG)?;
+        if checker_spawn.is_none() {
+            return Ok(None);
+        }
+        log::debug!("Waiting for checker process");
+        let checker_result = checker_process.wait()?;
+        let verdict = check_checker_result(&checker_result);
+        return Ok(Some(JudgeResultInfo {
+            verdict,
+            time: user_time,
+            memory: max_mem,
+            exit_status: user_result.exit_status,
+            checker_exit_status: checker_result.exit_status,
+        }));
+    } else {
+        if compare_files(
+            &PathBuf::from(&runner_config.output_file_path), 
+            &PathBuf::from(&runner_config.answer_file_path)
+        ) {
+            return Ok(Some(JudgeResultInfo {
+                verdict: JudgeVerdict::Accepted,
+                time: user_time,
+                memory: max_mem,
+                exit_status: user_result.exit_status,
+                checker_exit_status: 0,
+            }));
+        } else {
+            return Ok(Some(JudgeResultInfo {
+                verdict: JudgeVerdict::WrongAnswer,
+                time: user_time,
+                memory: max_mem,
+                exit_status: user_result.exit_status,
+                checker_exit_status: 0,
+            }));    
+        }
     }
-    log::debug!("Waiting for checker process");
-    let checker_result = checker_process.wait()?;
-    let verdict = check_checker_result(&checker_result);
-    Ok(Some(JudgeResultInfo {
-        verdict,
-        time: user_time,
-        memory: max_mem,
-        exit_status: user_result.exit_status,
-        checker_exit_status: checker_result.exit_status,
-    }))
 }
 
 fn set_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
@@ -257,28 +278,29 @@ pub fn run_interact(
     // let _user_result = user_process.wait()?;
     // let _interact_result = interact_process.wait()?;
     log::debug!("Creating sandbox for checker process");
-    let mut checker_process = SandBox::new(false)?;
-    // the checker will compare the output of interactor with answer file
-    let checker_args = vec![
-        first_args,
-        runner_config.input_file_path.to_owned(),
-        runner_config.output_file_path.to_owned(),
-        runner_config.answer_file_path.to_owned(),
-        runner_config.check_file_path.to_owned(),
-    ];
-    let checker_executor = Executor::new(
-        Language::Cpp,
-        runner_config.checker_path.to_owned(),
-        checker_args,
-    );
-    log::debug!("Spawning checker process");
-    let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG)?;
-    if checker_spawn.is_none() {
-        return Ok(None);
+    if let Some(checker_path) = runner_config.maybe_checker_path.clone() {
+        let mut checker_process = SandBox::new(false)?;
+        let first_args = String::from("");
+        let checker_args = vec![
+            first_args,
+            runner_config.input_file_path.to_owned(),
+            runner_config.output_file_path.to_owned(),
+            runner_config.answer_file_path.to_owned(),
+            runner_config.check_file_path.to_owned(),
+        ];
+        let checker_executor = Executor::new(Language::Cpp, checker_path, checker_args);
+        log::debug!("Spawning checker process");
+        let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG)?;
+        if checker_spawn.is_none() {
+            return Ok(None);
+        }
+        log::debug!("Waiting for checker process");
+        let checker_result = checker_process.wait()?;    
+        return Ok(Some(checker_result));
     }
-    log::debug!("Waiting for checker process");
-    let checker_result = checker_process.wait()?;
-    Ok(Some(checker_result))
+    Err(JudgeCoreError::AnyhowError(anyhow::anyhow!(
+        "Checker path is not provided"
+    )))
 }
 
 #[cfg(test)]
@@ -301,7 +323,7 @@ pub mod monitor {
         let runner_config = RunnerConfig {
             language: Language::Cpp,
             program_path: "./../test-collection/dist/programs/read_and_write".to_owned(),
-            checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
+            maybe_checker_path: None,
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
@@ -321,7 +343,7 @@ pub mod monitor {
         let runner_config = RunnerConfig {
             language: Language::Cpp,
             program_path: "./../test-collection/dist/programs/infinite_loop".to_owned(),
-            checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
+            maybe_checker_path: Some("./../test-collection/dist/checkers/lcmp".to_owned()),
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
@@ -341,7 +363,7 @@ pub mod monitor {
         let runner_config = RunnerConfig {
             language: Language::Cpp,
             program_path: "./../test-collection/dist/programs/memory_limit".to_owned(),
-            checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
+            maybe_checker_path: Some("./../test-collection/dist/checkers/lcmp".to_owned()),
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
@@ -361,7 +383,7 @@ pub mod monitor {
         let runner_config = RunnerConfig {
             language: Language::Cpp,
             program_path: "./../test-collection/dist/programs/read_and_write".to_owned(),
-            checker_path: "./../test-collection/dist/checkers/lcmp".to_owned(),
+            maybe_checker_path: Some("./../test-collection/dist/checkers/lcmp".to_owned()),
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
