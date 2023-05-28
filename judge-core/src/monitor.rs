@@ -318,8 +318,13 @@ pub mod monitor {
         fsize_limit: Some((1024, 1024)),
     };
 
+    fn init() {
+        let _ = env_logger::builder().filter_level(log::LevelFilter::Debug).try_init();
+    }
+
     #[test]
     fn test_run_judge() {
+        init();
         let runner_config = RunnerConfig {
             language: Language::Cpp,
             program_path: "./../test-collection/dist/programs/read_and_write".to_owned(),
@@ -331,10 +336,12 @@ pub mod monitor {
             rlimit_config: TEST_CONFIG,
         };
         let result = run_judge(&runner_config);
-        assert!(result.is_ok());
         if let Ok(Some(result)) = result {
             log::debug!("{:?}", result);
             assert_eq!(result.verdict, JudgeVerdict::Accepted);
+        } else {
+            log::debug!("{:?}", result);
+            assert!(false)
         }
     }
 
