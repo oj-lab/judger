@@ -4,7 +4,7 @@ use anyhow::anyhow;
 
 use crate::{
     compiler::{Compiler, Language},
-    error::JudgeCoreError,
+    error::JudgeCoreError, utils::copy_recursively,
 };
 
 pub enum PackageType {
@@ -47,32 +47,21 @@ impl JudgeBuilder {
     fn build_icpc(&mut self) -> Result<(), JudgeCoreError> {
         fs::create_dir_all(self.runtime_path.clone())?;
         // copy checker to runtime path
-        let checker_exe_path = self.package_path.join("output_validators");
-        if checker_exe_path.exists() {
-            fs::create_dir_all(self.runtime_path.join("checkers"))?;
-            for entry in fs::read_dir(checker_exe_path)? {
-                let entry = entry?;
-                let path = entry.path();
-                if path.is_file() {
-                    let filename = path.file_name().unwrap();
-                    fs::copy(&path, self.runtime_path.join("checkers").join(filename))?;
-                }
-            }
+        let package_output_validators_path = self.package_path.join("output_validators");
+        if package_output_validators_path.exists() {
+            log::warn!("Output validators found, but not supported yet");
+        } else {
+            log::info!("No output validators found, using default checker");
         }
         // copy testcases to runtime path
-        let secret_testcases_path = self.package_path.join("data/secret");
-        fs::create_dir_all(self.runtime_path.join("data/secret"))?;
-        for entry in fs::read_dir(secret_testcases_path)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_file() {
-                fs::copy(
-                    &path,
-                    self.runtime_path
-                        .join("data/secret")
-                        .join(path.file_name().unwrap()),
-                )?;
-            }
+        let package_testcases_path = self.package_path.join("data");
+        let runtime_testcases_path = self.runtime_path.join("data");
+        if package_testcases_path.exists() {
+            copy_recursively(&package_testcases_path, &runtime_testcases_path)?;
+        } else {
+            return Err(JudgeCoreError::AnyhowError(anyhow!(
+                "Testcases not found"
+            )));
         }
         if self.src_path.exists() {
             let compiler = Compiler::new(self.src_language, vec![]);
