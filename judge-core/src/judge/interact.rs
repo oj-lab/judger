@@ -1,13 +1,8 @@
 use crate::compiler::Language;
 use crate::error::JudgeCoreError;
 use crate::executor::Executor;
-use crate::result::{
-    check_checker_result, check_user_result, get_max_mem, get_run_time, JudgeResultInfo, JudgeVerdict,
-};
-use crate::utils::compare_files;
-use crate::sandbox::{
-    ProcessListener, RawRunResultInfo, ResourceLimitConfig, SandBox, SCRIPT_LIMIT_CONFIG,
-};
+use crate::sandbox::{ProcessListener, RawRunResultInfo, SandBox, SCRIPT_LIMIT_CONFIG};
+
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::sys::epoll::{
@@ -16,113 +11,8 @@ use nix::sys::epoll::{
 use nix::unistd::{pipe, read, write};
 use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::path::PathBuf;
 
-pub struct RunnerConfig {
-    pub language: Language,
-    pub program_path: String,
-    pub maybe_checker_path: Option<String>,
-    pub input_file_path: String,
-    pub output_file_path: String,
-    pub answer_file_path: String,
-    pub check_file_path: String,
-    pub rlimit_config: ResourceLimitConfig,
-}
-
-pub fn run_judge(runner_config: &RunnerConfig) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
-    log::debug!("Creating sandbox for user process");
-    let mut user_process = SandBox::new(true)?;
-    log::debug!("Opening input file path={}", runner_config.input_file_path);
-    let input_file = File::open(&runner_config.input_file_path)?;
-    log::debug!(
-        "Opening output file path={}",
-        runner_config.output_file_path
-    );
-    let output_file = File::options()
-        .write(true)
-        .truncate(true) // Overwrite the whole content of this file
-        .open(&runner_config.output_file_path)?;
-    let input_raw_fd: RawFd = input_file.as_raw_fd();
-    let output_raw_fd: RawFd = output_file.as_raw_fd();
-    log::debug!("Spawning user process");
-    let user_executor = Executor::new(
-        runner_config.language,
-        runner_config.program_path.to_owned(),
-        vec![String::from("")],
-    );
-    let user_spawn = user_process.spawn_with_io(
-        user_executor,
-        &runner_config.rlimit_config,
-        input_raw_fd,
-        output_raw_fd,
-    )?;
-    if user_spawn.is_none() {
-        return Ok(None);
-    }
-    log::debug!("Waiting for user process");
-    let user_result = user_process.wait()?;
-    let user_time = get_run_time(&user_result);
-    let max_mem = get_max_mem(&user_result);
-    if let Some(verdict) = check_user_result(&user_result) {
-        return Ok(Some(JudgeResultInfo {
-            verdict,
-            time: user_time,
-            memory: max_mem,
-            exit_status: user_result.exit_status,
-            checker_exit_status: 0,
-        }));
-    }
-
-    log::debug!("Creating sandbox for checker process");
-    if let Some(checker_path) = runner_config.maybe_checker_path.clone() {
-        let mut checker_process = SandBox::new(false)?;
-        let first_args = String::from("");
-        let checker_args = vec![
-            first_args,
-            runner_config.input_file_path.to_owned(),
-            runner_config.output_file_path.to_owned(),
-            runner_config.answer_file_path.to_owned(),
-            runner_config.check_file_path.to_owned(),
-        ];
-        let checker_executor = Executor::new(Language::Cpp, checker_path, checker_args);
-        log::debug!("Spawning checker process");
-        let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG)?;
-        if checker_spawn.is_none() {
-            return Ok(None);
-        }
-        log::debug!("Waiting for checker process");
-        let checker_result = checker_process.wait()?;
-        let verdict = check_checker_result(&checker_result);
-        return Ok(Some(JudgeResultInfo {
-            verdict,
-            time: user_time,
-            memory: max_mem,
-            exit_status: user_result.exit_status,
-            checker_exit_status: checker_result.exit_status,
-        }));
-    } else {
-        if compare_files(
-            &PathBuf::from(&runner_config.output_file_path), 
-            &PathBuf::from(&runner_config.answer_file_path)
-        ) {
-            return Ok(Some(JudgeResultInfo {
-                verdict: JudgeVerdict::Accepted,
-                time: user_time,
-                memory: max_mem,
-                exit_status: user_result.exit_status,
-                checker_exit_status: 0,
-            }));
-        } else {
-            return Ok(Some(JudgeResultInfo {
-                verdict: JudgeVerdict::WrongAnswer,
-                time: user_time,
-                memory: max_mem,
-                exit_status: user_result.exit_status,
-                checker_exit_status: 0,
-            }));    
-        }
-    }
-}
+use super::JudgeConfig;
 
 fn set_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
     log::debug!("Setting fd={} to non blocking", fd);
@@ -149,21 +39,22 @@ fn pump_proxy_pipe(from: RawFd, to: RawFd, output: RawFd) {
     }
 }
 
+fn add_epoll_fd(epoll_fd: RawFd, fd: RawFd) -> Result<(), JudgeCoreError> {
+    let mut event = EpollEvent::new(EpollFlags::EPOLLIN, fd as u64);
+    log::debug!("Adding fd={} to epoll", fd);
+    Ok(epoll_ctl(
+        epoll_fd,
+        EpollOp::EpollCtlAdd,
+        fd,
+        Some(&mut event),
+    )?)
+}
+
 pub fn run_interact(
-    runner_config: &RunnerConfig,
+    runner_config: &JudgeConfig,
     interactor_path: &str,
     output_path: &String,
 ) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
-    fn add_epoll_fd(epoll_fd: RawFd, fd: RawFd) -> Result<(), JudgeCoreError> {
-        let mut event = EpollEvent::new(EpollFlags::EPOLLIN, fd as u64);
-        log::debug!("Adding fd={} to epoll", fd);
-        Ok(epoll_ctl(
-            epoll_fd,
-            EpollOp::EpollCtlAdd,
-            fd,
-            Some(&mut event),
-        )?)
-    }
     log::debug!("Creating sandbox for user process");
     let mut user_process = ProcessListener::new(true)?;
     log::debug!("Creating sandbox for interactor process");
@@ -278,7 +169,7 @@ pub fn run_interact(
     // let _user_result = user_process.wait()?;
     // let _interact_result = interact_process.wait()?;
     log::debug!("Creating sandbox for checker process");
-    if let Some(checker_path) = runner_config.maybe_checker_path.clone() {
+    if let Some(checker_path) = runner_config.custom_checker_path.clone() {
         let mut checker_process = SandBox::new(false)?;
         let first_args = String::from("");
         let checker_args = vec![
@@ -295,7 +186,7 @@ pub fn run_interact(
             return Ok(None);
         }
         log::debug!("Waiting for checker process");
-        let checker_result = checker_process.wait()?;    
+        let checker_result = checker_process.wait()?;
         return Ok(Some(checker_result));
     }
     Err(JudgeCoreError::AnyhowError(anyhow::anyhow!(
@@ -304,11 +195,10 @@ pub fn run_interact(
 }
 
 #[cfg(test)]
-pub mod monitor {
-    use super::*;
-    use crate::compiler::Language;
-    use crate::result::JudgeVerdict;
-    use crate::sandbox::ResourceLimitConfig;
+pub mod interact_judge_test {
+    use crate::{compiler::Language, judge::JudgeConfig, sandbox::ResourceLimitConfig};
+
+    use super::run_interact;
 
     const TEST_CONFIG: ResourceLimitConfig = ResourceLimitConfig {
         stack_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
@@ -318,79 +208,12 @@ pub mod monitor {
         fsize_limit: Some((1024, 1024)),
     };
 
-    fn init() {
-        let _ = env_logger::builder().filter_level(log::LevelFilter::Debug).try_init();
-    }
-
-    #[test]
-    fn test_run_judge() {
-        init();
-        let runner_config = RunnerConfig {
-            language: Language::Cpp,
-            program_path: "./../test-collection/dist/programs/read_and_write".to_owned(),
-            maybe_checker_path: None,
-            input_file_path: "../tmp/in".to_owned(),
-            output_file_path: "../tmp/out".to_owned(),
-            answer_file_path: "../tmp/ans".to_owned(),
-            check_file_path: "../tmp/check".to_owned(),
-            rlimit_config: TEST_CONFIG,
-        };
-        let result = run_judge(&runner_config);
-        if let Ok(Some(result)) = result {
-            log::debug!("{:?}", result);
-            assert_eq!(result.verdict, JudgeVerdict::Accepted);
-        } else {
-            log::debug!("{:?}", result);
-            assert!(false)
-        }
-    }
-
-    #[test]
-    fn test_run_tle() {
-        let runner_config = RunnerConfig {
-            language: Language::Cpp,
-            program_path: "./../test-collection/dist/programs/infinite_loop".to_owned(),
-            maybe_checker_path: Some("./../test-collection/dist/checkers/lcmp".to_owned()),
-            input_file_path: "../tmp/in".to_owned(),
-            output_file_path: "../tmp/out".to_owned(),
-            answer_file_path: "../tmp/ans".to_owned(),
-            check_file_path: "../tmp/check".to_owned(),
-            rlimit_config: TEST_CONFIG,
-        };
-        let result = run_judge(&runner_config);
-        assert!(result.is_ok());
-        if let Ok(Some(result)) = result {
-            log::debug!("{:?}", result);
-            assert_eq!(result.verdict, JudgeVerdict::TimeLimitExceeded);
-        }
-    }
-
-    #[test]
-    fn test_run_mle() {
-        let runner_config = RunnerConfig {
-            language: Language::Cpp,
-            program_path: "./../test-collection/dist/programs/memory_limit".to_owned(),
-            maybe_checker_path: Some("./../test-collection/dist/checkers/lcmp".to_owned()),
-            input_file_path: "../tmp/in".to_owned(),
-            output_file_path: "../tmp/out".to_owned(),
-            answer_file_path: "../tmp/ans".to_owned(),
-            check_file_path: "../tmp/check".to_owned(),
-            rlimit_config: TEST_CONFIG,
-        };
-        let result = run_judge(&runner_config);
-        assert!(result.is_ok());
-        if let Ok(Some(result)) = result {
-            log::debug!("{:?}", result);
-            assert_eq!(result.verdict, JudgeVerdict::RuntimeError);
-        }
-    }
-
     #[test]
     fn test_run_interact() {
-        let runner_config = RunnerConfig {
+        let runner_config = JudgeConfig {
             language: Language::Cpp,
             program_path: "./../test-collection/dist/programs/read_and_write".to_owned(),
-            maybe_checker_path: Some("./../test-collection/dist/checkers/lcmp".to_owned()),
+            custom_checker_path: Some("./../test-collection/dist/checkers/lcmp".to_owned()),
             input_file_path: "../tmp/in".to_owned(),
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),

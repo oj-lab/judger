@@ -4,7 +4,8 @@ use anyhow::anyhow;
 
 use crate::{
     compiler::{Compiler, Language},
-    error::JudgeCoreError, utils::copy_recursively,
+    error::JudgeCoreError,
+    utils::copy_recursively,
 };
 
 pub enum PackageType {
@@ -59,9 +60,7 @@ impl JudgeBuilder {
         if package_testcases_path.exists() {
             copy_recursively(&package_testcases_path, &runtime_testcases_path)?;
         } else {
-            return Err(JudgeCoreError::AnyhowError(anyhow!(
-                "Testcases not found"
-            )));
+            return Err(JudgeCoreError::AnyhowError(anyhow!("Testcases not found")));
         }
         if self.src_path.exists() {
             let compiler = Compiler::new(self.src_language, vec![]);
