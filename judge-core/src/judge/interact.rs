@@ -121,7 +121,7 @@ pub fn run_interact(
 
     let first_args = String::from("");
     let interact_args = vec![
-        first_args.to_owned(),
+        first_args,
         runner_config.input_file_path.to_owned(),
         runner_config.output_file_path.to_owned(),
         runner_config.answer_file_path.to_owned(),

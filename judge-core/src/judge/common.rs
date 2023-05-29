@@ -76,34 +76,32 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
         log::debug!("Waiting for checker process");
         let checker_result = checker_process.wait()?;
         let verdict = check_checker_result(&checker_result);
-        return Ok(Some(JudgeResultInfo {
+        Ok(Some(JudgeResultInfo {
             verdict,
             time: user_time,
             memory: max_mem,
             exit_status: user_result.exit_status,
             checker_exit_status: checker_result.exit_status,
-        }));
+        }))
+    } else if compare_files(
+        &PathBuf::from(&runner_config.output_file_path),
+        &PathBuf::from(&runner_config.answer_file_path),
+    ) {
+        Ok(Some(JudgeResultInfo {
+            verdict: JudgeVerdict::Accepted,
+            time: user_time,
+            memory: max_mem,
+            exit_status: user_result.exit_status,
+            checker_exit_status: 0,
+        }))
     } else {
-        if compare_files(
-            &PathBuf::from(&runner_config.output_file_path),
-            &PathBuf::from(&runner_config.answer_file_path),
-        ) {
-            return Ok(Some(JudgeResultInfo {
-                verdict: JudgeVerdict::Accepted,
-                time: user_time,
-                memory: max_mem,
-                exit_status: user_result.exit_status,
-                checker_exit_status: 0,
-            }));
-        } else {
-            return Ok(Some(JudgeResultInfo {
-                verdict: JudgeVerdict::WrongAnswer,
-                time: user_time,
-                memory: max_mem,
-                exit_status: user_result.exit_status,
-                checker_exit_status: 0,
-            }));
-        }
+        Ok(Some(JudgeResultInfo {
+            verdict: JudgeVerdict::WrongAnswer,
+            time: user_time,
+            memory: max_mem,
+            exit_status: user_result.exit_status,
+            checker_exit_status: 0,
+        }))
     }
 }
 
