@@ -11,6 +11,7 @@ use nix::sys::epoll::{
 use nix::unistd::{pipe, read, write};
 use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
+use std::path::PathBuf;
 
 use super::JudgeConfig;
 
@@ -96,7 +97,10 @@ pub fn run_interact(
     user_process.set_exit_fd(user_exit_write, 41u8);
     interact_process.set_exit_fd(interactor_exit_write, 42u8);
 
-    log::debug!("Opening input file path={}", runner_config.input_file_path);
+    log::debug!("Opening output file path={}", runner_config.input_file_path);
+    if !PathBuf::from(&output_path).exists() {
+        File::create(output_path)?;
+    }
     let output_file = File::options()
         .write(true)
         .truncate(true) // Overwrite the whole content of this file
@@ -208,8 +212,15 @@ pub mod interact_judge_test {
         fsize_limit: Some((1024, 1024)),
     };
 
+    fn init() {
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Debug)
+            .try_init();
+    }
+
     #[test]
     fn test_run_interact() {
+        init();
         let runner_config = JudgeConfig {
             language: Language::Cpp,
             program_path: "./../test-collection/dist/programs/read_and_write".to_owned(),

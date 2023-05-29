@@ -21,6 +21,9 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
         "Opening output file path={}",
         runner_config.output_file_path
     );
+    if !PathBuf::from(&runner_config.output_file_path).exists() {
+        File::create(&runner_config.output_file_path)?;
+    }
     let output_file = File::options()
         .write(true)
         .truncate(true) // Overwrite the whole content of this file
@@ -152,6 +155,7 @@ pub mod common_judge_tests {
 
     #[test]
     fn test_run_tle() {
+        init();
         let runner_config = JudgeConfig {
             language: Language::Cpp,
             program_path: "./../test-collection/dist/programs/infinite_loop".to_owned(),
@@ -172,6 +176,7 @@ pub mod common_judge_tests {
 
     #[test]
     fn test_run_mle() {
+        init();
         let runner_config = JudgeConfig {
             language: Language::Cpp,
             program_path: "./../test-collection/dist/programs/memory_limit".to_owned(),
