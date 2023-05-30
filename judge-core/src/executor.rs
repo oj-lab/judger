@@ -100,7 +100,8 @@ pub mod executor {
             Language::Cpp,
             PathBuf::from("../test-collection/dist/programs/memory_limit".to_string()),
             vec![],
-        ).expect("executor init failed");
+        )
+        .expect("executor init failed");
         match executor.exec() {
             Ok(result) => {
                 log::debug!("{:?}", result);

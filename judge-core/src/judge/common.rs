@@ -70,7 +70,8 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
             runner_config.answer_file_path.to_owned(),
             runner_config.check_file_path.to_owned(),
         ];
-        let checker_executor = Executor::new(Language::Cpp, PathBuf::from(checker_path), checker_args)?;
+        let checker_executor =
+            Executor::new(Language::Cpp, PathBuf::from(checker_path), checker_args)?;
         log::debug!("Spawning checker process");
         let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG)?;
         if checker_spawn.is_none() {
