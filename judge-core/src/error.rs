@@ -41,3 +41,8 @@ impl From<anyhow::Error> for JudgeCoreError {
         JudgeCoreError::AnyhowError(error)
     }
 }
+
+pub fn anyhow_error_msg(msg: &str) -> JudgeCoreError {
+    let msg = msg.to_string();
+    anyhow::anyhow!(msg).into()
+}

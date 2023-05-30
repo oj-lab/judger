@@ -34,7 +34,7 @@ impl Executor {
         let (command, args) = self.build_cmd_args()?;
         let mut final_args = args;
         final_args.extend(self.additional_args.clone());
-        let c_args = args
+        let c_args = final_args
             .iter()
             .map(|s| CString::new(s.as_bytes()))
             .collect::<Result<Vec<_>, _>>()?;
@@ -49,22 +49,22 @@ impl Executor {
         let path_string = match self.path.clone().to_str() {
             Some(path_string) => Ok(path_string.to_owned()),
             None => Err(anyhow_error_msg(
-                "excutor did not find path for this language",
+                "executor did not find path for this language",
             )),
-        };
+        }?;
         let command = match self.language {
-            Language::Rust => path_string,
-            Language::Cpp => path_string,
-            Language::Python => Ok("/usr/bin/python3".to_owned()),
+            Language::Rust => path_string.to_owned(),
+            Language::Cpp => path_string.to_owned(),
+            Language::Python => "/usr/bin/python3".to_owned(),
         };
         let args = match self.language {
-            Language::Rust => vec![],
-            Language::Cpp => vec![],
+            Language::Rust => vec![String::from("")],
+            Language::Cpp => vec![String::from("")],
             Language::Python => {
-                vec![path_string?]
+                vec![String::from(""), path_string]
             }
         };
-        Ok((command?, args))
+        Ok((command, args))
     }
 }
 
@@ -80,7 +80,7 @@ pub mod executor {
         let executor = Executor::new(
             Language::Python,
             PathBuf::from("../test-collection/src/programs/read_and_write.py"),
-            vec![String::from("")],
+            vec![],
         )
         .expect("executor init failed");
         match executor.exec() {
@@ -99,7 +99,7 @@ pub mod executor {
         let executor = Executor::new(
             Language::Cpp,
             PathBuf::from("../test-collection/dist/programs/memory_limit".to_string()),
-            vec![String::from("")],
+            vec![],
         ).expect("executor init failed");
         match executor.exec() {
             Ok(result) => {
