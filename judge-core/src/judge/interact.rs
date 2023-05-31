@@ -112,18 +112,17 @@ pub fn run_interact(
         PathBuf::from(runner_config.program_path.to_owned()),
         vec![String::from("")],
     )?;
-    let user_spawn = user_process.spawn_with_io(
+    let user_spawn = user_process.spawn(
         user_executor,
         &runner_config.rlimit_config,
-        user_read_proxy,
-        user_write_proxy,
+        Some((user_read_proxy, user_write_proxy)),
     )?;
 
     if user_spawn.is_none() {
         return Ok(None);
     }
 
-    let first_args = String::from("");
+    let first_args: String = String::from("");
     let interact_args = vec![
         first_args,
         runner_config.input_file_path.to_owned(),
@@ -136,11 +135,10 @@ pub fn run_interact(
         interact_args,
     )?;
     log::debug!("Spawning interactor process");
-    let interact_spawn = interact_process.spawn_with_io(
+    let interact_spawn = interact_process.spawn(
         interact_executor,
         &SCRIPT_LIMIT_CONFIG,
-        interactor_read_proxy,
-        interactor_write_proxy,
+        Some((interactor_read_proxy, interactor_write_proxy)),
     )?;
 
     if interact_spawn.is_none() {
@@ -189,7 +187,7 @@ pub fn run_interact(
         let checker_executor =
             Executor::new(Language::Cpp, PathBuf::from(checker_path), checker_args)?;
         log::debug!("Spawning checker process");
-        let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG)?;
+        let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG, None)?;
         if checker_spawn.is_none() {
             return Ok(None);
         }

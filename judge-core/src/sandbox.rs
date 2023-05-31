@@ -1,3 +1,4 @@
+use crate::error::anyhow_error_msg;
 use crate::executor::Executor;
 use crate::{error::JudgeCoreError, utils::get_default_rusage};
 use libc::{c_int, rusage, wait4, WEXITSTATUS, WSTOPPED, WTERMSIG};
@@ -30,6 +31,28 @@ pub const SCRIPT_LIMIT_CONFIG: ResourceLimitConfig = ResourceLimitConfig {
     fsize_limit: Some((1024, 1024)),
 };
 
+const DEFAULT_SCMP_WHITELIST: [&str; 19] = [
+    "read",
+    "fstat",
+    "mmap",
+    "mprotect",
+    "munmap",
+    "uname",
+    "arch_prctl",
+    "brk",
+    "access",
+    "exit_group",
+    "close",
+    "readlink",
+    "sysinfo",
+    "write",
+    "writev",
+    "lseek",
+    "clock_gettime",
+    "pread64",
+    "execve",
+];
+
 #[derive(Debug)]
 pub struct RawRunResultInfo {
     pub exit_status: c_int,
@@ -55,29 +78,7 @@ impl SandBox {
             false => ScmpFilterContext::new_filter(ScmpAction::Allow)?,
         };
         if restricted {
-            let white_list: Vec<&str> = vec![
-                "read",
-                "fstat",
-                "mmap",
-                "mprotect",
-                "munmap",
-                "uname",
-                "arch_prctl",
-                "brk",
-                "access",
-                "exit_group",
-                "close",
-                "readlink",
-                "sysinfo",
-                "write",
-                "writev",
-                "lseek",
-                "clock_gettime",
-                "pread64",
-                "execve",
-                "open",
-                "openat",
-            ];
+            let white_list = DEFAULT_SCMP_WHITELIST;
             for s in white_list.iter() {
                 log::debug!("Add syscall {} to white list.", s);
                 let syscall = ScmpSyscall::from_name(s)?;
@@ -147,6 +148,7 @@ impl SandBox {
         &mut self,
         executor: Executor,
         rlimit_config: &ResourceLimitConfig,
+        io_raw_fds: Option<(RawFd, RawFd)>,
     ) -> Result<Option<()>, JudgeCoreError> {
         let now = Instant::now();
 
@@ -156,7 +158,6 @@ impl SandBox {
                     "Continuing execution in parent process, new child has pid: {}",
                     child
                 );
-
                 self.child_pid = child.as_raw();
                 self.begin_time = now;
 
@@ -164,61 +165,17 @@ impl SandBox {
             }
             Ok(ForkResult::Child) => {
                 // Unsafe to use `println!` (or `unwrap`) here. See Safety.
-                log::debug!(
-                    "Set up io in: {}, out: {}",
-                    self.stdin_raw_fd,
-                    self.stdout_raw_fd
-                );
+                if let Some((input_raw_fd, output_raw_fd)) = io_raw_fds {
+                    self.set_io(input_raw_fd, output_raw_fd);
+                    log::debug!("Set up io in: {}, out: {}", input_raw_fd, output_raw_fd);
+                }
                 self.set_limit(rlimit_config)?;
                 log::debug!("Set up limit: {:?}", rlimit_config);
                 self.exec(executor)?;
 
                 Ok(None)
             }
-            Err(_) => {
-                log::info!("Fork failed");
-                // TODO: error handling
-                Ok(None)
-            }
-        }
-    }
-
-    pub fn spawn_with_io(
-        &mut self,
-        executor: Executor,
-        rlimit_config: &ResourceLimitConfig,
-        input_raw_fd: RawFd,
-        output_raw_fd: RawFd,
-    ) -> Result<Option<()>, JudgeCoreError> {
-        let now = Instant::now();
-
-        match unsafe { fork() } {
-            Ok(ForkResult::Parent { child, .. }) => {
-                log::info!(
-                    "Continuing execution in parent process, new child has pid: {}",
-                    child
-                );
-
-                self.child_pid = child.as_raw();
-                self.begin_time = now;
-
-                Ok(Some(()))
-            }
-            Ok(ForkResult::Child) => {
-                // Unsafe to use `println!` (or `unwrap`) here. See Safety.
-                self.set_io(input_raw_fd, output_raw_fd);
-                log::debug!("Set up io in: {}, out: {}", input_raw_fd, output_raw_fd);
-                self.set_limit(rlimit_config)?;
-                log::debug!("Set up limit: {:?}", rlimit_config);
-                self.exec(executor)?;
-
-                Ok(None)
-            }
-            Err(_) => {
-                log::info!("Fork failed");
-
-                Ok(None)
-            }
+            Err(e) => Err(anyhow_error_msg(&format!("Fork failed with error: {}", e))),
         }
     }
 
@@ -274,6 +231,7 @@ impl ProcessListener {
         &mut self,
         executor: Executor,
         rlimit_config: &ResourceLimitConfig,
+        io_raw_fds: Option<(RawFd, RawFd)>,
     ) -> Result<Option<()>, JudgeCoreError> {
         self.begin_time = Instant::now();
 
@@ -284,43 +242,7 @@ impl ProcessListener {
             }
             Ok(ForkResult::Child) => {
                 log::debug!("Child process {} start.", self.pid);
-                let process = self.sandbox.spawn(executor, rlimit_config)?;
-                if process.is_some() {
-                    // listen to the status of sandbox
-                    log::debug!("Wait for process {}.", self.pid);
-                    let _result = self.sandbox.wait()?;
-                    // how to send the result to parent???
-                }
-                Ok(None)
-            }
-            Err(_) => {
-                panic!("Fork failed.");
-            }
-        }
-    }
-
-    pub fn spawn_with_io(
-        &mut self,
-        executor: Executor,
-        rlimit_config: &ResourceLimitConfig,
-        input_raw_fd: RawFd,
-        output_raw_fd: RawFd,
-    ) -> Result<Option<()>, JudgeCoreError> {
-        self.begin_time = Instant::now();
-
-        match unsafe { fork() } {
-            Ok(ForkResult::Parent { child, .. }) => {
-                self.pid = child.as_raw();
-                Ok(Some(()))
-            }
-            Ok(ForkResult::Child) => {
-                log::debug!("Child process {} start.", self.pid);
-                let process = self.sandbox.spawn_with_io(
-                    executor,
-                    rlimit_config,
-                    input_raw_fd,
-                    output_raw_fd,
-                )?;
+                let process = self.sandbox.spawn(executor, rlimit_config, io_raw_fds)?;
                 if process.is_some() {
                     // listen to the status of sandbox
                     log::debug!("Wait for process {}.", self.pid);

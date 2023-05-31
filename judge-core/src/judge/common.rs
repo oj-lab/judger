@@ -36,11 +36,10 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
         PathBuf::from(runner_config.program_path.to_owned()),
         vec![String::from("")],
     )?;
-    let user_spawn = user_process.spawn_with_io(
+    let user_spawn = user_process.spawn(
         user_executor,
         &runner_config.rlimit_config,
-        input_raw_fd,
-        output_raw_fd,
+        Some((input_raw_fd, output_raw_fd)),
     )?;
     if user_spawn.is_none() {
         return Ok(None);
@@ -73,7 +72,7 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
         let checker_executor =
             Executor::new(Language::Cpp, PathBuf::from(checker_path), checker_args)?;
         log::debug!("Spawning checker process");
-        let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG)?;
+        let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG, None)?;
         if checker_spawn.is_none() {
             return Ok(None);
         }
