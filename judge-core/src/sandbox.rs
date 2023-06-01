@@ -1,4 +1,3 @@
-use crate::error::anyhow_error_msg;
 use crate::executor::Executor;
 use crate::{error::JudgeCoreError, utils::get_default_rusage};
 use libc::{c_int, rusage, wait4, WEXITSTATUS, WSTOPPED, WTERMSIG};
@@ -80,7 +79,6 @@ impl SandBox {
         if restricted {
             let white_list = DEFAULT_SCMP_WHITELIST;
             for s in white_list.iter() {
-                log::debug!("Add syscall {} to white list.", s);
                 let syscall = ScmpSyscall::from_name(s)?;
                 log::debug!("Add syscall {} to white list.", syscall);
                 filter.add_rule_exact(ScmpAction::Allow, syscall)?;
@@ -175,7 +173,7 @@ impl SandBox {
 
                 Ok(None)
             }
-            Err(e) => Err(anyhow_error_msg(&format!("Fork failed with error: {}", e))),
+            Err(e) => Err(JudgeCoreError::NixErrno(e)),
         }
     }
 

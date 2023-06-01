@@ -2,6 +2,7 @@ use crate::error::JudgeCoreError;
 use crate::utils::TemplateCommand;
 use anyhow::anyhow;
 use std::fmt;
+use std::path::PathBuf;
 use std::{process::Command, str::FromStr};
 
 #[derive(Clone, PartialEq, Copy)]
@@ -72,6 +73,16 @@ impl Compiler {
             src_path,
             target_path
         );
+        if !PathBuf::from(src_path).exists() {
+            return Err(JudgeCoreError::AnyhowError(anyhow!(
+                "Source file not found: {}",
+                src_path
+            )));
+        }
+        if PathBuf::from(target_path).exists() {
+            std::fs::remove_file(target_path)?;
+        }
+
         let output = Command::new("sh")
             .arg("-c")
             .arg(
