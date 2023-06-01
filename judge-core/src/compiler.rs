@@ -1,7 +1,8 @@
 use crate::error::JudgeCoreError;
-use crate::utils::TemplateCommand;
+use crate::utils::{get_pathbuf_str, TemplateCommand};
 use anyhow::anyhow;
 use std::fmt;
+use std::path::PathBuf;
 use std::{process::Command, str::FromStr};
 
 #[derive(Clone, PartialEq, Copy)]
@@ -65,19 +66,38 @@ impl Compiler {
         }
     }
 
-    pub fn compile(&self, src_path: &str, target_path: &str) -> Result<String, JudgeCoreError> {
+    pub fn compile(
+        &self,
+        src_path: &PathBuf,
+        target_path: &PathBuf,
+    ) -> Result<String, JudgeCoreError> {
+        if !PathBuf::from(src_path).exists() {
+            return Err(JudgeCoreError::AnyhowError(anyhow!(
+                "Source file not found: {:?}",
+                src_path
+            )));
+        }
+
+        let src_path_string = get_pathbuf_str(src_path)?;
+        let target_path_string = get_pathbuf_str(target_path)?;
+
         log::info!(
             "Compiling language={} src={} target={}",
             self.language,
-            src_path,
-            target_path
+            src_path_string,
+            target_path_string
         );
+
+        if PathBuf::from(target_path).exists() {
+            std::fs::remove_file(target_path)?;
+        }
+
         let output = Command::new("sh")
             .arg("-c")
             .arg(
                 &self
                     .command
-                    .get_command(vec![src_path.to_string(), target_path.to_string()]),
+                    .get_command(vec![src_path_string, target_path_string]),
             )
             .args(self.compiler_args.iter())
             .output()?;
@@ -95,6 +115,8 @@ impl Compiler {
 
 #[cfg(test)]
 pub mod compiler {
+    use std::path::PathBuf;
+
     use super::{Compiler, Language};
 
     fn init() {
@@ -106,8 +128,8 @@ pub mod compiler {
         init();
         let compiler = Compiler::new(Language::Cpp, vec!["-std=c++17".to_string()]);
         match compiler.compile(
-            "../test-collection/src/programs/infinite_loop.cpp",
-            "../tmp/infinite_loop_test",
+            &PathBuf::from("../test-collection/src/programs/infinite_loop.cpp"),
+            &PathBuf::from("../tmp/infinite_loop_test"),
         ) {
             Ok(out) => {
                 log::info!("{}", out);
@@ -121,8 +143,8 @@ pub mod compiler {
         init();
         let compiler = Compiler::new(Language::Python, vec![]);
         match compiler.compile(
-            "../test-collection/src/programs/read_and_write.py",
-            "../tmp/read_and_write",
+            &PathBuf::from("../test-collection/src/programs/read_and_write.py"),
+            &PathBuf::from("../tmp/read_and_write"),
         ) {
             Ok(out) => {
                 log::info!("{}", out);

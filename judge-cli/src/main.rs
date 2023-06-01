@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 use judge_core::compiler::{Compiler, Language};
 
@@ -29,7 +31,7 @@ fn main() {
             language,
         }) => {
             let compiler = Compiler::new(language, vec!["-std=c++17".to_string()]);
-            let output = compiler.compile(&source, &target);
+            let output = compiler.compile(&PathBuf::from(source), &PathBuf::from(target));
             println!("{:?}", output)
         }
         None => {

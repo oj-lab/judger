@@ -1,10 +1,9 @@
 use std::{fs, path::PathBuf};
 
-use anyhow::anyhow;
-
 use crate::{
     compiler::{Compiler, Language},
-    error::JudgeCoreError, utils::copy_recursively,
+    error::{path_not_exist, JudgeCoreError},
+    utils::copy_recursively,
 };
 
 pub enum PackageType {
@@ -59,20 +58,13 @@ impl JudgeBuilder {
         if package_testcases_path.exists() {
             copy_recursively(&package_testcases_path, &runtime_testcases_path)?;
         } else {
-            return Err(JudgeCoreError::AnyhowError(anyhow!(
-                "Testcases not found"
-            )));
+            return Err(path_not_exist(&package_testcases_path));
         }
         if self.src_path.exists() {
             let compiler = Compiler::new(self.src_language, vec![]);
-            compiler.compile(
-                self.src_path.to_str().unwrap(),
-                self.runtime_path.join("program").to_str().unwrap(),
-            )?;
+            compiler.compile(&self.src_path, &self.runtime_path.join("program"))?;
         } else {
-            return Err(JudgeCoreError::AnyhowError(anyhow!(
-                "Source file not found"
-            )));
+            return Err(path_not_exist(&self.src_path));
         }
 
         self.built = true;

@@ -2,6 +2,7 @@ use libseccomp::error::SeccompError;
 use nix::errno::Errno;
 use std::ffi::NulError;
 use std::io;
+use std::path::PathBuf;
 
 #[derive(Debug)]
 pub enum JudgeCoreError {
@@ -40,4 +41,8 @@ impl From<anyhow::Error> for JudgeCoreError {
     fn from(error: anyhow::Error) -> JudgeCoreError {
         JudgeCoreError::AnyhowError(error)
     }
+}
+
+pub fn path_not_exist(path: &PathBuf) -> JudgeCoreError {
+    JudgeCoreError::AnyhowError(anyhow::anyhow!("Path not exist: {:?}", path))
 }

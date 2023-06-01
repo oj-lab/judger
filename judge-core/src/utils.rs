@@ -1,6 +1,6 @@
-use std::{fs, io, path::PathBuf};
-
+use anyhow::anyhow;
 use libc::rusage;
+use std::{fs, io, path::PathBuf};
 
 #[derive(Clone)]
 pub struct TemplateCommand {
@@ -77,6 +77,8 @@ pub fn copy_recursively(src: &PathBuf, dest: &PathBuf) -> io::Result<()> {
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
+use crate::error::JudgeCoreError;
+
 pub fn compare_files(file_path1: &PathBuf, file_path2: &PathBuf) -> bool {
     let file1 = BufReader::new(File::open(file_path1).unwrap());
     let file2 = BufReader::new(File::open(file_path2).unwrap());
@@ -89,4 +91,14 @@ pub fn compare_files(file_path1: &PathBuf, file_path2: &PathBuf) -> bool {
         let trimed2 = line2_string.trim_end();
         trimed1 == trimed2
     })
+}
+
+pub fn get_pathbuf_str(path: &PathBuf) -> Result<String, JudgeCoreError> {
+    match path.to_str() {
+        Some(path_str) => Ok(path_str.to_owned()),
+        None => Err(JudgeCoreError::AnyhowError(anyhow!(
+            "PathBuf to str failed: {:?}",
+            path
+        ))),
+    }
 }
