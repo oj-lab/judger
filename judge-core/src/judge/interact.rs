@@ -97,7 +97,10 @@ pub fn run_interact(
     user_process.set_exit_fd(user_exit_write, 41u8);
     interact_process.set_exit_fd(interactor_exit_write, 42u8);
 
-    log::debug!("Opening output file path={}", runner_config.output_file_path);
+    log::debug!(
+        "Opening output file path={}",
+        runner_config.output_file_path
+    );
     if !PathBuf::from(&output_path).exists() {
         File::create(output_path)?;
     }

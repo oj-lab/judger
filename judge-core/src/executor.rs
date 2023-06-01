@@ -1,5 +1,5 @@
-use crate::compiler::Language;
 use crate::error::JudgeCoreError;
+use crate::{compiler::Language, utils::get_pathbuf_str};
 use anyhow::anyhow;
 use nix::unistd::execve;
 use std::{convert::Infallible, ffi::CString, path::PathBuf};
@@ -48,13 +48,7 @@ impl Executor {
     }
 
     fn build_cmd_args(&self) -> Result<(String, Vec<String>), JudgeCoreError> {
-        let path_string = match self.path.clone().to_str() {
-            Some(path_string) => Ok(path_string.to_owned()),
-            None => Err(JudgeCoreError::AnyhowError(anyhow!(
-                "Executor path not found: {}",
-                self.path.to_str().unwrap_or("unknown")
-            ))),
-        }?;
+        let path_string = get_pathbuf_str(&self.path)?;
         let command = match self.language {
             Language::Rust => path_string.to_owned(),
             Language::Cpp => path_string.to_owned(),
