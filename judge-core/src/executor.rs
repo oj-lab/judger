@@ -38,6 +38,7 @@ impl Executor {
             .iter()
             .map(|s| CString::new(s.as_bytes()))
             .collect::<Result<Vec<_>, _>>()?;
+        log::debug!("execve: {:?} {:?}", command, c_args);
         Ok(execve(
             &CString::new(command)?,
             c_args.as_slice(),
@@ -58,10 +59,10 @@ impl Executor {
             Language::Python => "/usr/bin/python3".to_owned(),
         };
         let args = match self.language {
-            Language::Rust => vec![String::from("")],
-            Language::Cpp => vec![String::from("")],
+            Language::Rust => vec![],
+            Language::Cpp => vec![],
             Language::Python => {
-                vec![String::from(""), path_string]
+                vec![path_string]
             }
         };
         Ok((command, args))
