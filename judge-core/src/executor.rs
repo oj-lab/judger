@@ -1,6 +1,5 @@
-use crate::error::JudgeCoreError;
+use crate::error::{path_not_exist, JudgeCoreError};
 use crate::{compiler::Language, utils::get_pathbuf_str};
-use anyhow::anyhow;
 use nix::unistd::execve;
 use std::{convert::Infallible, ffi::CString, path::PathBuf};
 
@@ -18,10 +17,7 @@ impl Executor {
         additional_args: Vec<String>,
     ) -> Result<Self, JudgeCoreError> {
         if !path.exists() {
-            return Err(JudgeCoreError::AnyhowError(anyhow!(
-                "Executor path not found: {}",
-                path.to_str().unwrap_or("unknown")
-            )));
+            return Err(path_not_exist(&path));
         }
 
         Ok(Self {
