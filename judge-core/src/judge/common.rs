@@ -2,9 +2,11 @@ use crate::compiler::Language;
 use crate::result::{
     check_checker_result, check_user_result, get_max_mem, get_run_time, JudgeVerdict,
 };
-use crate::sandbox::SCRIPT_LIMIT_CONFIG;
+use crate::run::sandbox::SCRIPT_LIMIT_CONFIG;
 use crate::utils::compare_files;
-use crate::{error::JudgeCoreError, executor::Executor, result::JudgeResultInfo, sandbox::SandBox};
+use crate::{
+    error::JudgeCoreError, result::JudgeResultInfo, run::executor::Executor, run::sandbox::Sandbox,
+};
 
 use super::JudgeConfig;
 
@@ -13,8 +15,6 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
 
 pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
-    log::debug!("Creating sandbox for user process");
-    let mut user_process = SandBox::new(true)?;
     log::debug!("Opening input file path={}", runner_config.input_file_path);
     let input_file = File::open(&runner_config.input_file_path)?;
     log::debug!(
@@ -30,22 +30,26 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
         .open(&runner_config.output_file_path)?;
     let input_raw_fd: RawFd = input_file.as_raw_fd();
     let output_raw_fd: RawFd = output_file.as_raw_fd();
-    log::debug!("Spawning user process");
+
     let user_executor = Executor::new(
         runner_config.language,
         PathBuf::from(runner_config.program_path.to_owned()),
         vec![String::from("")],
     )?;
-    let user_spawn = user_process.spawn(
+
+    log::debug!("Creating sandbox for user process");
+    let mut user_sandbox = Sandbox::new(
         user_executor,
-        &runner_config.rlimit_config,
-        Some((input_raw_fd, output_raw_fd)),
+        runner_config.rlimit_configs.clone(),
+        Some(input_raw_fd),
+        Some(output_raw_fd),
+        true,
     )?;
-    if user_spawn.is_none() {
-        return Ok(None);
-    }
+
+    log::debug!("Spawning user process");
+    let _user_spawn = user_sandbox.spawn()?;
     log::debug!("Waiting for user process");
-    let user_result = user_process.wait()?;
+    let user_result = user_sandbox.wait()?;
     let user_time = get_run_time(&user_result);
     let max_mem = get_max_mem(&user_result);
     if let Some(verdict) = check_user_result(&user_result) {
@@ -60,7 +64,6 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
 
     log::debug!("Creating sandbox for checker process");
     if let Some(checker_path) = runner_config.custom_checker_path.clone() {
-        let mut checker_process = SandBox::new(false)?;
         let first_args = String::from("");
         let checker_args = vec![
             first_args,
@@ -71,11 +74,12 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
         ];
         let checker_executor =
             Executor::new(Language::Cpp, PathBuf::from(checker_path), checker_args)?;
+
+        let mut checker_process =
+            Sandbox::new(checker_executor, SCRIPT_LIMIT_CONFIG, None, None, false)?;
+
         log::debug!("Spawning checker process");
-        let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG, None)?;
-        if checker_spawn.is_none() {
-            return Ok(None);
-        }
+        let _checker_spawn = checker_process.spawn()?;
         log::debug!("Waiting for checker process");
         let checker_result = checker_process.wait()?;
         let verdict = check_checker_result(&checker_result);
@@ -111,12 +115,12 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
 #[cfg(test)]
 pub mod common_judge_tests {
     use crate::{
-        compiler::Language, judge::JudgeConfig, result::JudgeVerdict, sandbox::ResourceLimitConfig,
+        compiler::Language, judge::JudgeConfig, result::JudgeVerdict, run::sandbox::RlimitConfigs,
     };
 
     use super::run_judge;
 
-    const TEST_CONFIG: ResourceLimitConfig = ResourceLimitConfig {
+    const TEST_CONFIG: RlimitConfigs = RlimitConfigs {
         stack_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
         as_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
         cpu_limit: Some((1, 2)),
@@ -141,7 +145,7 @@ pub mod common_judge_tests {
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
             check_file_path: "../tmp/check".to_owned(),
-            rlimit_config: TEST_CONFIG,
+            rlimit_configs: TEST_CONFIG,
         };
         let result = run_judge(&runner_config);
         if let Ok(Some(result)) = result {
@@ -164,7 +168,7 @@ pub mod common_judge_tests {
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
             check_file_path: "../tmp/check".to_owned(),
-            rlimit_config: TEST_CONFIG,
+            rlimit_configs: TEST_CONFIG,
         };
         let result = run_judge(&runner_config);
         assert!(result.is_ok());
@@ -185,7 +189,7 @@ pub mod common_judge_tests {
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
             check_file_path: "../tmp/check".to_owned(),
-            rlimit_config: TEST_CONFIG,
+            rlimit_configs: TEST_CONFIG,
         };
         let result = run_judge(&runner_config);
         assert!(result.is_ok());

@@ -5,7 +5,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::{process::Command, str::FromStr};
 
-#[derive(Clone, PartialEq, Copy)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum Language {
     Rust,
     Cpp,
