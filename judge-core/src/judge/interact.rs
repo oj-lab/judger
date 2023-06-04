@@ -180,14 +180,13 @@ pub fn run_interact(
         ];
         let checker_executor =
             Executor::new(Language::Cpp, PathBuf::from(checker_path), checker_args)?;
-
-        let mut checker_process =
+        let mut checker_sandbox =
             Sandbox::new(checker_executor, SCRIPT_LIMIT_CONFIG, None, None, false)?;
 
         log::debug!("Spawning checker process");
-        let _checker_spawn = checker_process.spawn()?;
+        let _checker_spawn = checker_sandbox.spawn()?;
         log::debug!("Waiting for checker process");
-        let checker_result = checker_process.wait()?;
+        let checker_result = checker_sandbox.wait()?;
         return Ok(Some(checker_result));
     }
     Err(JudgeCoreError::AnyhowError(anyhow::anyhow!(

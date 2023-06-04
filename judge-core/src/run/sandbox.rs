@@ -1,12 +1,15 @@
 use crate::{error::JudgeCoreError, utils::get_default_rusage};
 use libc::{c_int, rusage, wait4, WEXITSTATUS, WSTOPPED, WTERMSIG};
 use libseccomp::{ScmpAction, ScmpFilterContext, ScmpSyscall};
-use nix::sys::resource::{
-    setrlimit,
-    Resource::{RLIMIT_AS, RLIMIT_CPU, RLIMIT_STACK},
-};
 use nix::unistd::dup2;
 use nix::unistd::{fork, ForkResult};
+use nix::{
+    sys::resource::{
+        setrlimit,
+        Resource::{RLIMIT_AS, RLIMIT_CPU, RLIMIT_STACK},
+    },
+    unistd::close,
+};
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::time::{Duration, Instant};
@@ -57,15 +60,23 @@ impl Sandbox {
         })
     }
 
-    pub fn load_io_redirect(&self) -> Result<(), JudgeCoreError> {
+    /// Currently close all `stderr` and close `stdin`/`stdout` if redirect is not set
+    fn load_io(&self) -> Result<(), JudgeCoreError> {
+        let stderr_raw_fd = io::stderr().as_raw_fd();
+        close(stderr_raw_fd)?;
+
+        let stdin_raw_fd = io::stdin().as_raw_fd();
+        let stdout_raw_fd = io::stdout().as_raw_fd();
         if let Some(input_redirect) = self.input_redirect {
-            let stdin_raw_fd = io::stdin().as_raw_fd();
             dup2(input_redirect, stdin_raw_fd)?;
+        } else {
+            close(stdin_raw_fd)?;
         }
 
         if let Some(output_redirect) = self.output_redirect {
-            let stdout_raw_fd = io::stdout().as_raw_fd();
             dup2(output_redirect, stdout_raw_fd)?;
+        } else {
+            close(stdout_raw_fd)?;
         }
         Ok(())
     }
@@ -103,8 +114,7 @@ impl Sandbox {
             // child process should not return to do things outside `spawn()`
             Ok(ForkResult::Child) => {
                 // TODO: maybe customed error handler are needed
-                self.load_io_redirect()
-                    .expect("Failed to load io redirect");
+                self.load_io().expect("Failed to load io redirect");
                 self.rlimit_configs
                     .load()
                     .expect("Failed to load rlimit configs");

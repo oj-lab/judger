@@ -26,4 +26,6 @@ jobs:
       - name: Build test dist
         run: cd test-collection && ./build.sh && cd ..
       - name: Run tests
-        run: RUST_LOG=info cargo test --verbose -- --nocapture
+        # Currently use --test-threads=1 to avoid log mess
+        # Should only be used in judge-core later
+        run: RUST_LOG=info cargo test -- --nocapture --test-threads=1
