@@ -1,7 +1,8 @@
 use crate::compiler::Language;
 use crate::error::JudgeCoreError;
-use crate::executor::Executor;
-use crate::sandbox::{ProcessListener, RawRunResultInfo, SandBox, SCRIPT_LIMIT_CONFIG};
+use crate::run::executor::Executor;
+use crate::run::process_listener::ProcessListener;
+use crate::run::sandbox::{RawRunResultInfo, Sandbox, SCRIPT_LIMIT_CONFIG};
 
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
@@ -57,20 +58,15 @@ pub fn run_interact(
     output_path: &String,
 ) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
     log::debug!("Creating sandbox for user process");
-    let mut user_process = ProcessListener::new(true)?;
+    let mut user_listener = ProcessListener::new()?;
     log::debug!("Creating sandbox for interactor process");
-    let mut interact_process = ProcessListener::new(false)?;
-
-    fn create_pipe() -> Result<(RawFd, RawFd), JudgeCoreError> {
-        log::debug!("Creating pipe");
-        Ok(pipe()?)
-    }
+    let mut interact_listener = ProcessListener::new()?;
 
     log::debug!("Creating pipes");
-    let (proxy_read_user, user_write_proxy) = create_pipe()?;
-    let (proxy_read_interactor, interactor_write_proxy) = create_pipe()?;
-    let (user_read_proxy, proxy_write_user) = create_pipe()?;
-    let (interactor_read_proxy, proxy_write_interactor) = create_pipe()?;
+    let (proxy_read_user, user_write_proxy) = pipe()?;
+    let (proxy_read_interactor, interactor_write_proxy) = pipe()?;
+    let (user_read_proxy, proxy_write_user) = pipe()?;
+    let (interactor_read_proxy, proxy_write_interactor) = pipe()?;
 
     // epoll will listen to the write event
     // when should it be non blocking???
@@ -88,14 +84,14 @@ pub fn run_interact(
     add_epoll_fd(epoll_fd, proxy_read_interactor)?;
 
     log::debug!("Creating exit pipes");
-    let (user_exit_read, user_exit_write) = create_pipe()?;
-    let (interactor_exit_read, interactor_exit_write) = create_pipe()?;
+    let (user_exit_read, user_exit_write) = pipe()?;
+    let (interactor_exit_read, interactor_exit_write) = pipe()?;
 
     log::debug!("Adding exit fds to epoll");
     add_epoll_fd(epoll_fd, user_exit_read)?;
     add_epoll_fd(epoll_fd, interactor_exit_read)?;
-    user_process.set_exit_fd(user_exit_write, 41u8);
-    interact_process.set_exit_fd(interactor_exit_write, 42u8);
+    user_listener.set_exit_fd(user_exit_write, 41u8);
+    interact_listener.set_exit_fd(interactor_exit_write, 42u8);
 
     log::debug!(
         "Opening output file path={}",
@@ -109,21 +105,19 @@ pub fn run_interact(
         .truncate(true) // Overwrite the whole content of this file
         .open(output_path)?;
     let output_raw_fd: RawFd = output_file.as_raw_fd();
-    log::debug!("Spawning user process");
     let user_executor = Executor::new(
         runner_config.language,
         PathBuf::from(runner_config.program_path.to_owned()),
         vec![String::from("")],
     )?;
-    let user_spawn = user_process.spawn(
+    let mut user_sandbox = Sandbox::new(
         user_executor,
-        &runner_config.rlimit_config,
-        Some((user_read_proxy, user_write_proxy)),
+        runner_config.rlimit_configs.clone(),
+        Some(user_read_proxy),
+        Some(user_write_proxy),
+        true,
     )?;
-
-    if user_spawn.is_none() {
-        return Ok(None);
-    }
+    let _user_spawn = user_listener.spawn_with_sandbox(&mut user_sandbox)?;
 
     let first_args: String = String::from("");
     let interact_args = vec![
@@ -137,16 +131,14 @@ pub fn run_interact(
         PathBuf::from(interactor_path.to_string()),
         interact_args,
     )?;
-    log::debug!("Spawning interactor process");
-    let interact_spawn = interact_process.spawn(
+    let mut interact_sandbox = Sandbox::new(
         interact_executor,
-        &SCRIPT_LIMIT_CONFIG,
-        Some((interactor_read_proxy, interactor_write_proxy)),
+        SCRIPT_LIMIT_CONFIG,
+        Some(interactor_read_proxy),
+        Some(interactor_write_proxy),
+        false,
     )?;
-
-    if interact_spawn.is_none() {
-        return Ok(None);
-    }
+    let _interact_spawn = interact_listener.spawn_with_sandbox(&mut interact_sandbox)?;
 
     let mut events = [EpollEvent::empty(); 128];
     loop {
@@ -178,7 +170,6 @@ pub fn run_interact(
     // let _interact_result = interact_process.wait()?;
     log::debug!("Creating sandbox for checker process");
     if let Some(checker_path) = runner_config.custom_checker_path.clone() {
-        let mut checker_process = SandBox::new(false)?;
         let first_args = String::from("");
         let checker_args = vec![
             first_args,
@@ -189,13 +180,13 @@ pub fn run_interact(
         ];
         let checker_executor =
             Executor::new(Language::Cpp, PathBuf::from(checker_path), checker_args)?;
+        let mut checker_sandbox =
+            Sandbox::new(checker_executor, SCRIPT_LIMIT_CONFIG, None, None, false)?;
+
         log::debug!("Spawning checker process");
-        let checker_spawn = checker_process.spawn(checker_executor, &SCRIPT_LIMIT_CONFIG, None)?;
-        if checker_spawn.is_none() {
-            return Ok(None);
-        }
+        let _checker_spawn = checker_sandbox.spawn()?;
         log::debug!("Waiting for checker process");
-        let checker_result = checker_process.wait()?;
+        let checker_result = checker_sandbox.wait()?;
         return Ok(Some(checker_result));
     }
     Err(JudgeCoreError::AnyhowError(anyhow::anyhow!(
@@ -205,11 +196,11 @@ pub fn run_interact(
 
 #[cfg(test)]
 pub mod interact_judge_test {
-    use crate::{compiler::Language, judge::JudgeConfig, sandbox::ResourceLimitConfig};
+    use crate::{compiler::Language, judge::JudgeConfig, run::sandbox::RlimitConfigs};
 
     use super::run_interact;
 
-    const TEST_CONFIG: ResourceLimitConfig = ResourceLimitConfig {
+    const TEST_CONFIG: RlimitConfigs = RlimitConfigs {
         stack_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
         as_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
         cpu_limit: Some((1, 2)),
@@ -234,7 +225,7 @@ pub mod interact_judge_test {
             output_file_path: "../tmp/out".to_owned(),
             answer_file_path: "../tmp/ans".to_owned(),
             check_file_path: "../tmp/check".to_owned(),
-            rlimit_config: TEST_CONFIG,
+            rlimit_configs: TEST_CONFIG,
         };
         let result = run_interact(
             &runner_config,

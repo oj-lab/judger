@@ -61,48 +61,4 @@ impl Executor {
     }
 }
 
-#[cfg(test)]
-pub mod executor {
-    use std::path::PathBuf;
-
-    use super::Executor;
-    use crate::compiler::Language;
-
-    #[test]
-    fn test_exec_python() {
-        let executor = Executor::new(
-            Language::Python,
-            PathBuf::from("../test-collection/src/programs/read_and_write.py"),
-            vec![],
-        )
-        .expect("executor init failed");
-        match executor.exec() {
-            Ok(result) => {
-                log::debug!("{:?}", result);
-            }
-            Err(e) => {
-                log::error!("meet error: {:?}", e);
-                assert!(false);
-            }
-        }
-    }
-
-    #[test]
-    fn test_exec_cpp() {
-        let executor = Executor::new(
-            Language::Cpp,
-            PathBuf::from("../test-collection/dist/programs/memory_limit".to_string()),
-            vec![],
-        )
-        .expect("executor init failed");
-        match executor.exec() {
-            Ok(result) => {
-                log::debug!("{:?}", result);
-            }
-            Err(e) => {
-                log::error!("meet error: {:?}", e);
-                assert!(false);
-            }
-        }
-    }
-}
+// Removed executor unit tests, these test should run in sandbox

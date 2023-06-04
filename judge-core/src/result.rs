@@ -1,4 +1,4 @@
-use crate::sandbox::RawRunResultInfo;
+use crate::run::sandbox::RawRunResultInfo;
 
 #[derive(Debug)]
 pub struct JudgeResultInfo {
@@ -34,6 +34,7 @@ pub fn get_max_mem(raw_info: &RawRunResultInfo) -> i64 {
 
 pub fn check_user_result(raw_info: &RawRunResultInfo) -> Option<JudgeVerdict> {
     let exit_status = raw_info.exit_status;
+    log::debug!("User program exit status: {}", exit_status);
     match exit_status {
         0 => None,
         11 => Some(JudgeVerdict::RuntimeError),
@@ -45,6 +46,7 @@ pub fn check_user_result(raw_info: &RawRunResultInfo) -> Option<JudgeVerdict> {
 pub fn check_checker_result(raw_info: &RawRunResultInfo) -> JudgeVerdict {
     // TODO: return verdict according to the checker output
     let exit_status = raw_info.exit_status;
+    log::debug!("Checker program exit status: {}", exit_status);
     match exit_status {
         0 => JudgeVerdict::Accepted,
         256 => JudgeVerdict::WrongAnswer,
