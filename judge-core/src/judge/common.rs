@@ -14,7 +14,7 @@ use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
 
-pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
+fn run_user(runner_config: &JudgeConfig) -> Result<(Option<JudgeVerdict>, i64, i64, i32), JudgeCoreError> {
     log::debug!("Opening input file path={}", runner_config.input_file_path);
     let input_file = File::open(&runner_config.input_file_path)?;
     log::debug!(
@@ -52,43 +52,52 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
     let user_result = user_sandbox.wait()?;
     let user_time = get_run_time(&user_result);
     let max_mem = get_max_mem(&user_result);
-    if let Some(verdict) = check_user_result(&user_result) {
+    Ok((check_user_result(&user_result), user_time, max_mem, user_result.exit_status))
+}
+
+fn run_checker(runner_config: &JudgeConfig) -> Result<(JudgeVerdict, i32), JudgeCoreError> {
+    let checker_path = runner_config.custom_checker_path.clone().unwrap();
+    let first_args = String::from("");
+    let checker_args = vec![
+        first_args,
+        runner_config.input_file_path.to_owned(),
+        runner_config.output_file_path.to_owned(),
+        runner_config.answer_file_path.to_owned(),
+        runner_config.check_file_path.to_owned(),
+    ];
+    let checker_executor = Executor::new(Language::Cpp, PathBuf::from(checker_path), checker_args)?;
+
+    let mut checker_process =
+        Sandbox::new(checker_executor, SCRIPT_LIMIT_CONFIG, None, None, false)?;
+
+    log::debug!("Spawning checker process");
+    let _checker_spawn = checker_process.spawn()?;
+    log::debug!("Waiting for checker process");
+    let checker_result = checker_process.wait()?;
+    Ok((check_checker_result(&checker_result), checker_result.exit_status))
+}
+
+pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
+    let (user_verdict, user_time, max_mem, user_exit_status) = run_user(runner_config)?;
+    if let Some(verdict) = user_verdict {
         return Ok(Some(JudgeResultInfo {
             verdict,
             time: user_time,
             memory: max_mem,
-            exit_status: user_result.exit_status,
+            exit_status: user_exit_status,
             checker_exit_status: 0,
-        }));
+        }))
     }
 
     log::debug!("Creating sandbox for checker process");
-    if let Some(checker_path) = runner_config.custom_checker_path.clone() {
-        let first_args = String::from("");
-        let checker_args = vec![
-            first_args,
-            runner_config.input_file_path.to_owned(),
-            runner_config.output_file_path.to_owned(),
-            runner_config.answer_file_path.to_owned(),
-            runner_config.check_file_path.to_owned(),
-        ];
-        let checker_executor =
-            Executor::new(Language::Cpp, PathBuf::from(checker_path), checker_args)?;
-
-        let mut checker_process =
-            Sandbox::new(checker_executor, SCRIPT_LIMIT_CONFIG, None, None, false)?;
-
-        log::debug!("Spawning checker process");
-        let _checker_spawn = checker_process.spawn()?;
-        log::debug!("Waiting for checker process");
-        let checker_result = checker_process.wait()?;
-        let verdict = check_checker_result(&checker_result);
+    if let Some(_checker_path) = runner_config.custom_checker_path.clone() {
+        let (verdict, checker_exit_status) = run_checker(runner_config)?;
         Ok(Some(JudgeResultInfo {
             verdict,
             time: user_time,
             memory: max_mem,
-            exit_status: user_result.exit_status,
-            checker_exit_status: checker_result.exit_status,
+            exit_status: user_exit_status,
+            checker_exit_status: checker_exit_status,
         }))
     } else if compare_files(
         &PathBuf::from(&runner_config.output_file_path),
@@ -98,7 +107,7 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
             verdict: JudgeVerdict::Accepted,
             time: user_time,
             memory: max_mem,
-            exit_status: user_result.exit_status,
+            exit_status: user_exit_status,
             checker_exit_status: 0,
         }))
     } else {
@@ -106,7 +115,7 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
             verdict: JudgeVerdict::WrongAnswer,
             time: user_time,
             memory: max_mem,
-            exit_status: user_result.exit_status,
+            exit_status: user_exit_status,
             checker_exit_status: 0,
         }))
     }
