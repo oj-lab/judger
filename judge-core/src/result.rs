@@ -1,4 +1,5 @@
 use crate::run::sandbox::RawRunResultInfo;
+use std::fmt;
 
 #[derive(Debug)]
 pub struct JudgeResultInfo {
@@ -18,6 +19,12 @@ pub enum JudgeVerdict {
     RuntimeError,
     PartialScore,
     SystemError,
+}
+
+impl fmt::Display for JudgeVerdict {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 pub fn get_run_time(raw_info: &RawRunResultInfo) -> i64 {

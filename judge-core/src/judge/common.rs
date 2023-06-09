@@ -14,7 +14,9 @@ use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
 
-fn run_user(runner_config: &JudgeConfig) -> Result<(Option<JudgeVerdict>, i64, i64, i32), JudgeCoreError> {
+fn run_user(
+    runner_config: &JudgeConfig,
+) -> Result<(Option<JudgeVerdict>, i64, i64, i32), JudgeCoreError> {
     log::debug!("Opening input file path={}", runner_config.input_file_path);
     let input_file = File::open(&runner_config.input_file_path)?;
     log::debug!(
@@ -52,7 +54,12 @@ fn run_user(runner_config: &JudgeConfig) -> Result<(Option<JudgeVerdict>, i64, i
     let user_result = user_sandbox.wait()?;
     let user_time = get_run_time(&user_result);
     let max_mem = get_max_mem(&user_result);
-    Ok((check_user_result(&user_result), user_time, max_mem, user_result.exit_status))
+    Ok((
+        check_user_result(&user_result),
+        user_time,
+        max_mem,
+        user_result.exit_status,
+    ))
 }
 
 fn run_checker(runner_config: &JudgeConfig) -> Result<(JudgeVerdict, i32), JudgeCoreError> {
@@ -74,7 +81,10 @@ fn run_checker(runner_config: &JudgeConfig) -> Result<(JudgeVerdict, i32), Judge
     let _checker_spawn = checker_process.spawn()?;
     log::debug!("Waiting for checker process");
     let checker_result = checker_process.wait()?;
-    Ok((check_checker_result(&checker_result), checker_result.exit_status))
+    Ok((
+        check_checker_result(&checker_result),
+        checker_result.exit_status,
+    ))
 }
 
 pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
@@ -86,7 +96,7 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
             memory: max_mem,
             exit_status: user_exit_status,
             checker_exit_status: 0,
-        }))
+        }));
     }
 
     log::debug!("Creating sandbox for checker process");
@@ -97,7 +107,7 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
             time: user_time,
             memory: max_mem,
             exit_status: user_exit_status,
-            checker_exit_status: checker_exit_status,
+            checker_exit_status,
         }))
     } else if compare_files(
         &PathBuf::from(&runner_config.output_file_path),
