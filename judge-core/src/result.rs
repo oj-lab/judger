@@ -1,5 +1,5 @@
 use crate::run::sandbox::RawRunResultInfo;
-use std::{fmt, time::Duration, ops::Add};
+use std::{fmt, ops::Add, time::Duration};
 
 #[derive(Debug)]
 pub struct JudgeResultInfo {

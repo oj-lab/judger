@@ -10,7 +10,7 @@ use nix::{
     },
     unistd::close,
 };
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::time::{Duration, Instant};
@@ -153,8 +153,14 @@ pub struct Rusage {
 impl From<rusage> for Rusage {
     fn from(rusage: rusage) -> Self {
         Self {
-            user_time: Duration::new(rusage.ru_utime.tv_sec as u64, rusage.ru_utime.tv_usec as u32 * 1000),
-            system_time: Duration::new(rusage.ru_stime.tv_sec as u64, rusage.ru_stime.tv_usec as u32 * 1000),
+            user_time: Duration::new(
+                rusage.ru_utime.tv_sec as u64,
+                rusage.ru_utime.tv_usec as u32 * 1000,
+            ),
+            system_time: Duration::new(
+                rusage.ru_stime.tv_sec as u64,
+                rusage.ru_stime.tv_usec as u32 * 1000,
+            ),
             max_rss: rusage.ru_maxrss,
             page_faults: rusage.ru_majflt,
             involuntary_context_switches: rusage.ru_nivcsw,

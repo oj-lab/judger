@@ -1,7 +1,7 @@
 use crate::compiler::Language;
 use crate::error::JudgeCoreError;
 use crate::run::executor::Executor;
-use crate::run::process_listener::{ProcessListener, ProcessExitMessage};
+use crate::run::process_listener::{ProcessExitMessage, ProcessListener};
 use crate::run::sandbox::{RawRunResultInfo, Sandbox, SCRIPT_LIMIT_CONFIG};
 
 use nix::errno::Errno;
@@ -11,31 +11,57 @@ use nix::sys::epoll::{
 };
 use nix::unistd::{pipe, read, write};
 use std::fs::File;
-use std::io::{BufReader, BufRead};
-use std::os::fd::FromRawFd;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
 
 use super::JudgeConfig;
 
-fn set_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
+fn set_fd_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
     log::debug!("Setting fd={} to non blocking", fd);
     Ok(fcntl(fd, FcntlArg::F_SETFL(OFlag::O_NONBLOCK))?)
 }
 
-// write the content of `from` to `to`, record to output
-fn pump_proxy_pipe(from: RawFd, to: RawFd, output: RawFd) {
+/// write the content of `from` to `to`, record to output.
+/// `from` will be set to non-blocking mode.
+fn pump_proxy_pipe(from: RawFd, to: RawFd, output: RawFd) -> Result<(), JudgeCoreError> {
+    set_fd_non_blocking(from)?;
+
     let mut buf = [0; 1024];
     loop {
         match read(from, &mut buf) {
             Ok(nread) => {
                 log::debug!("{} read. {} -> {}", nread, from, to);
-                write(to, &buf[..nread]).ok();
-                write(output, &buf[..nread]).ok();
+                write(to, &buf[..nread])?;
+                write(output, &buf[..nread])?;
             }
             Err(e) => {
                 if e == Errno::EAGAIN || e == Errno::EWOULDBLOCK {
-                    return;
+                    return Ok(());
+                }
+                panic!("failed to read from pipe");
+            }
+        }
+    }
+}
+
+/// `from` will be set to non-blocking mode.
+fn read_string_from_fd(from: RawFd) -> Result<String, JudgeCoreError> {
+    set_fd_non_blocking(from)?;
+
+    let mut res_buf = Vec::new();
+    let mut buf = [0; 1024];
+    log::debug!("Reading from fd={}", from);
+    loop {
+        log::debug!("Reading from fd={}", from);
+        match read(from, &mut buf) {
+            Ok(nread) => {
+                log::debug!("{} read. {}", nread, from);
+                res_buf.extend_from_slice(&buf[..nread]);
+            }
+            Err(e) => {
+                if e == Errno::EAGAIN || e == Errno::EWOULDBLOCK {
+                    let buf_string = String::from_utf8(res_buf)?;
+                    return Ok(buf_string);
                 }
                 panic!("failed to read from pipe");
             }
@@ -70,14 +96,6 @@ pub fn run_interact(
     let (user_read_proxy, proxy_write_user) = pipe()?;
     let (interactor_read_proxy, proxy_write_interactor) = pipe()?;
 
-    // epoll will listen to the write event
-    // when should it be non blocking???
-    log::debug!("Setting pipes to non blocking");
-    set_non_blocking(user_write_proxy)?;
-    set_non_blocking(interactor_write_proxy)?;
-    set_non_blocking(proxy_read_user)?;
-    set_non_blocking(proxy_read_interactor)?;
-
     log::debug!("Creating epoll");
     let epoll_fd = epoll_create1(EpollCreateFlags::EPOLL_CLOEXEC)?;
 
@@ -88,6 +106,8 @@ pub fn run_interact(
     log::debug!("Creating exit pipes");
     let (user_exit_read, user_exit_write) = pipe()?;
     let (interactor_exit_read, interactor_exit_write) = pipe()?;
+    // set_non_blocking(user_exit_read)?;
+    // set_non_blocking(interactor_exit_read)?;
 
     log::debug!("Adding exit fds to epoll");
     add_epoll_fd(epoll_fd, user_exit_read)?;
@@ -153,51 +173,36 @@ pub fn run_interact(
             log::debug!("Event: {:?}", event);
             let fd = event.data() as RawFd;
             if fd == user_exit_read {
-                log::debug!("{:?} fd exited", fd);
+                log::debug!("{:?} user fd exited", fd);
                 user_exited = true;
-                let mut buf: Vec<u8> = Vec::new();
-                unsafe {
-                    let mut reader = BufReader::new(File::from_raw_fd(fd as RawFd));
-                    reader.read_until(b'\n', &mut buf)?;
-                }
-                let buf_string = String::from_utf8(buf).unwrap().trim().to_owned();
+                let buf_string = read_string_from_fd(fd as RawFd)?;
                 log::debug!("Raw Result info: {}", buf_string);
-                let result_info: ProcessExitMessage = serde_json::from_str(&buf_string)?;
-                log::debug!("Result info: {:?}", result_info);
+                let _result_info: ProcessExitMessage = serde_json::from_str(&buf_string)?;
             }
-
             if fd == interactor_exit_read {
-                log::debug!("{:?} fd exited", fd);
+                log::debug!("{:?} interactor fd exited", fd);
                 interactor_exited = true;
-                let mut buf: Vec<u8> = Vec::new();
-                unsafe {
-                    let mut reader = BufReader::new(File::from_raw_fd(fd as RawFd));
-                    reader.read_until(b'\n', &mut buf)?;
-                }
-                let buf_string = String::from_utf8(buf).unwrap().trim().to_owned();
+                let buf_string = read_string_from_fd(fd as RawFd)?;
                 log::debug!("Raw Result info: {}", buf_string);
-                let result_info: ProcessExitMessage = serde_json::from_str(&buf_string)?;
-                log::debug!("Result info: {:?}", result_info);
+                let _result_info: ProcessExitMessage = serde_json::from_str(&buf_string)?;
             }
             if fd == proxy_read_user {
                 log::debug!("proxy_read_user {} fd read", fd);
-                pump_proxy_pipe(proxy_read_user, proxy_write_interactor, output_raw_fd);
+                pump_proxy_pipe(proxy_read_user, proxy_write_interactor, output_raw_fd)?;
             }
             if fd == proxy_read_interactor {
                 log::debug!("proxy_read_interactor {} fd read", fd);
-                pump_proxy_pipe(proxy_read_interactor, proxy_write_user, output_raw_fd);
+                pump_proxy_pipe(proxy_read_interactor, proxy_write_user, output_raw_fd)?;
             }
+            log::warn!("Unknown fd: {}", fd)
         }
         if user_exited && interactor_exited {
+            log::debug!("Both user and interactor exited");
             break;
         }
     }
-
     log::debug!("Epoll finished!");
 
-    // TODO: get result from listener
-    // let _user_result = user_process.wait()?;
-    // let _interact_result = interact_process.wait()?;
     log::debug!("Creating sandbox for checker process");
     if let Some(checker_path) = runner_config.custom_checker_path.clone() {
         let first_args = String::from("");

@@ -42,9 +42,7 @@ impl ProcessListener {
                 exit_signal: self.exit_signal,
                 option_run_result,
             };
-            let msg_string = serde_json::to_string(&msg).unwrap() + "\n";
-            let msgbuf = msg_string.as_bytes();
-            let buf = [msgbuf].concat();
+            let buf = serde_json::to_vec(&msg).expect("Serialize failed.");
             write(self.child_exit_fd, &buf).unwrap();
         }
     }
