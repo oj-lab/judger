@@ -1,7 +1,7 @@
 use crate::compiler::Language;
 use crate::error::JudgeCoreError;
 use crate::run::executor::Executor;
-use crate::run::process_listener::ProcessListener;
+use crate::run::process_listener::{ProcessListener, ProcessExitMessage};
 use crate::run::sandbox::{RawRunResultInfo, Sandbox, SCRIPT_LIMIT_CONFIG};
 
 use nix::errno::Errno;
@@ -150,6 +150,7 @@ pub fn run_interact(
         let mut user_exited = false;
         let mut interactor_exited = false;
         for event in events.iter().take(num_events) {
+            log::debug!("Event: {:?}", event);
             let fd = event.data() as RawFd;
             if fd == user_exit_read {
                 log::debug!("{:?} fd exited", fd);
@@ -159,10 +160,10 @@ pub fn run_interact(
                     let mut reader = BufReader::new(File::from_raw_fd(fd as RawFd));
                     reader.read_until(b'\n', &mut buf)?;
                 }
-                let result_info = serde_json::from_slice(&buf)?;
+                let buf_string = String::from_utf8(buf).unwrap().trim().to_owned();
+                log::debug!("Raw Result info: {}", buf_string);
+                let result_info: ProcessExitMessage = serde_json::from_str(&buf_string)?;
                 log::debug!("Result info: {:?}", result_info);
-
-                break;
             }
 
             if fd == interactor_exit_read {
@@ -173,10 +174,10 @@ pub fn run_interact(
                     let mut reader = BufReader::new(File::from_raw_fd(fd as RawFd));
                     reader.read_until(b'\n', &mut buf)?;
                 }
-                let result_info = serde_json::from_slice(&buf)?;
+                let buf_string = String::from_utf8(buf).unwrap().trim().to_owned();
+                log::debug!("Raw Result info: {}", buf_string);
+                let result_info: ProcessExitMessage = serde_json::from_str(&buf_string)?;
                 log::debug!("Result info: {:?}", result_info);
-
-                break;
             }
             if fd == proxy_read_user {
                 log::debug!("proxy_read_user {} fd read", fd);

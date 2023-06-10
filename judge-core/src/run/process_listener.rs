@@ -42,7 +42,8 @@ impl ProcessListener {
                 exit_signal: self.exit_signal,
                 option_run_result,
             };
-            let msgbuf = serde_json::to_vec(&msg).unwrap();
+            let msg_string = serde_json::to_string(&msg).unwrap() + "\n";
+            let msgbuf = msg_string.as_bytes();
             let buf = [msgbuf].concat();
             write(self.child_exit_fd, &buf).unwrap();
         }
@@ -67,7 +68,7 @@ impl ProcessListener {
                 log::debug!("Process {} exit.", process);
                 self.pid = sandbox.child_pid;
                 self.report_exit(Some(run_result));
-                Ok(None)
+                unsafe { libc::_exit(0) };
             }
             Err(_) => {
                 panic!("Fork failed.");
