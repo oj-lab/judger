@@ -1,5 +1,6 @@
 use crate::compiler::Language;
 use crate::error::JudgeCoreError;
+use crate::result::{check_user_result, JudgeResultInfo, check_checker_result};
 use crate::run::executor::Executor;
 use crate::run::process_listener::{ProcessExitMessage, ProcessListener};
 use crate::run::sandbox::{RawRunResultInfo, Sandbox, SCRIPT_LIMIT_CONFIG};
@@ -84,34 +85,28 @@ pub fn run_interact(
     runner_config: &JudgeConfig,
     interactor_path: &str,
     output_path: &String,
-) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
-    log::debug!("Creating sandbox for user process");
-    let mut user_listener = ProcessListener::new()?;
-    log::debug!("Creating sandbox for interactor process");
-    let mut interact_listener = ProcessListener::new()?;
+) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
+    log::debug!("Creating epoll");
+    let epoll_fd = epoll_create1(EpollCreateFlags::EPOLL_CLOEXEC)?;
 
-    log::debug!("Creating pipes");
+    log::debug!("Creating interact pipes");
     let (proxy_read_user, user_write_proxy) = pipe()?;
     let (proxy_read_interactor, interactor_write_proxy) = pipe()?;
     let (user_read_proxy, proxy_write_user) = pipe()?;
     let (interactor_read_proxy, proxy_write_interactor) = pipe()?;
 
-    log::debug!("Creating epoll");
-    let epoll_fd = epoll_create1(EpollCreateFlags::EPOLL_CLOEXEC)?;
-
-    log::debug!("Adding fds to epoll");
+    log::debug!("Adding read proxy fds to epoll");
     add_epoll_fd(epoll_fd, proxy_read_user)?;
     add_epoll_fd(epoll_fd, proxy_read_interactor)?;
 
-    log::debug!("Creating exit pipes");
+    log::debug!("Creating exit report pipes with epoll");
     let (user_exit_read, user_exit_write) = pipe()?;
     let (interactor_exit_read, interactor_exit_write) = pipe()?;
-    // set_non_blocking(user_exit_read)?;
-    // set_non_blocking(interactor_exit_read)?;
-
-    log::debug!("Adding exit fds to epoll");
     add_epoll_fd(epoll_fd, user_exit_read)?;
     add_epoll_fd(epoll_fd, interactor_exit_read)?;
+
+    let mut user_listener = ProcessListener::new()?;
+    let mut interact_listener = ProcessListener::new()?;
     user_listener.set_exit_fd(user_exit_write, 41u8);
     interact_listener.set_exit_fd(interactor_exit_write, 42u8);
 
@@ -127,6 +122,7 @@ pub fn run_interact(
         .truncate(true) // Overwrite the whole content of this file
         .open(output_path)?;
     let output_raw_fd: RawFd = output_file.as_raw_fd();
+
     let user_executor = Executor::new(
         runner_config.language,
         PathBuf::from(runner_config.program_path.to_owned()),
@@ -139,7 +135,7 @@ pub fn run_interact(
         Some(user_write_proxy),
         true,
     )?;
-    let _user_spawn = user_listener.spawn_with_sandbox(&mut user_sandbox)?;
+    user_listener.spawn_with_sandbox(&mut user_sandbox)?;
 
     let first_args: String = String::from("");
     let interact_args = vec![
@@ -160,15 +156,17 @@ pub fn run_interact(
         Some(interactor_write_proxy),
         false,
     )?;
-    let _interact_spawn = interact_listener.spawn_with_sandbox(&mut interact_sandbox)?;
+    interact_listener.spawn_with_sandbox(&mut interact_sandbox)?;
 
     log::debug!("Starting epoll");
     let mut events = [EpollEvent::empty(); 128];
+    let mut user_exited = false;
+    let mut interactor_exited = false;
+    let mut option_user_result: Option<RawRunResultInfo> = None;
     loop {
         let num_events = epoll_wait(epoll_fd, &mut events, -1)?;
         log::debug!("{} events found!", num_events);
-        let mut user_exited = false;
-        let mut interactor_exited = false;
+
         for event in events.iter().take(num_events) {
             log::debug!("Event: {:?}", event);
             let fd = event.data() as RawFd;
@@ -177,14 +175,15 @@ pub fn run_interact(
                 user_exited = true;
                 let buf_string = read_string_from_fd(fd as RawFd)?;
                 log::debug!("Raw Result info: {}", buf_string);
-                let _result_info: ProcessExitMessage = serde_json::from_str(&buf_string)?;
+                let exit_msg: ProcessExitMessage = serde_json::from_str(&buf_string)?;
+                option_user_result = exit_msg.option_run_result;
             }
             if fd == interactor_exit_read {
                 log::debug!("{:?} interactor fd exited", fd);
                 interactor_exited = true;
                 let buf_string = read_string_from_fd(fd as RawFd)?;
                 log::debug!("Raw Result info: {}", buf_string);
-                let _result_info: ProcessExitMessage = serde_json::from_str(&buf_string)?;
+                let _interactor_result: ProcessExitMessage = serde_json::from_str(&buf_string)?;
             }
             if fd == proxy_read_user {
                 log::debug!("proxy_read_user {} fd read", fd);
@@ -194,7 +193,6 @@ pub fn run_interact(
                 log::debug!("proxy_read_interactor {} fd read", fd);
                 pump_proxy_pipe(proxy_read_interactor, proxy_write_user, output_raw_fd)?;
             }
-            log::warn!("Unknown fd: {}", fd)
         }
         if user_exited && interactor_exited {
             log::debug!("Both user and interactor exited");
@@ -202,6 +200,19 @@ pub fn run_interact(
         }
     }
     log::debug!("Epoll finished!");
+
+    if let Some(user_result) = option_user_result {
+        let option_user_verdict = check_user_result(&user_result);
+        if let Some(verdict) = option_user_verdict {
+            return Ok(Some(JudgeResultInfo {
+                verdict,
+                time: user_result.real_time_cost,
+                memory: user_result.resource_usage.max_rss,
+                exit_status: user_result.exit_status,
+                checker_exit_status: 0,
+            }));
+        }
+    }
 
     log::debug!("Creating sandbox for checker process");
     if let Some(checker_path) = runner_config.custom_checker_path.clone() {
@@ -222,11 +233,19 @@ pub fn run_interact(
         let _checker_spawn = checker_sandbox.spawn()?;
         log::debug!("Waiting for checker process");
         let checker_result = checker_sandbox.wait()?;
-        return Ok(Some(checker_result));
+        let checker_verdict = check_checker_result(&checker_result);
+        Ok(Some(JudgeResultInfo {
+            verdict: checker_verdict,
+            time: checker_result.real_time_cost,
+            memory: checker_result.resource_usage.max_rss,
+            exit_status: checker_result.exit_status,
+            checker_exit_status: checker_result.exit_status,
+        }))
+    } else {
+        Err(JudgeCoreError::AnyhowError(anyhow::anyhow!(
+            "Checker path is not provided"
+        )))
     }
-    Err(JudgeCoreError::AnyhowError(anyhow::anyhow!(
-        "Checker path is not provided"
-    )))
 }
 
 #[cfg(test)]
