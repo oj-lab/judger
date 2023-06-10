@@ -10,6 +10,7 @@ pub enum JudgeCoreError {
     SeccompError(SeccompError),
     FFINulError(NulError),
     IOError(io::Error),
+    SerdeJsonError(serde_json::Error),
     AnyhowError(anyhow::Error),
 }
 
@@ -40,6 +41,12 @@ impl From<io::Error> for JudgeCoreError {
 impl From<anyhow::Error> for JudgeCoreError {
     fn from(error: anyhow::Error) -> JudgeCoreError {
         JudgeCoreError::AnyhowError(error)
+    }
+}
+
+impl From<serde_json::Error> for JudgeCoreError {
+    fn from(error: serde_json::Error) -> JudgeCoreError {
+        JudgeCoreError::SerdeJsonError(error)
     }
 }
 

@@ -13,10 +13,11 @@ use super::JudgeConfig;
 use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
+use std::time::Duration;
 
 fn run_user(
     runner_config: &JudgeConfig,
-) -> Result<(Option<JudgeVerdict>, i64, i64, i32), JudgeCoreError> {
+) -> Result<(Option<JudgeVerdict>, Duration, i64, i32), JudgeCoreError> {
     log::debug!("Opening input file path={}", runner_config.input_file_path);
     let input_file = File::open(&runner_config.input_file_path)?;
     log::debug!(

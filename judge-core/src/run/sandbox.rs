@@ -10,6 +10,7 @@ use nix::{
     },
     unistd::close,
 };
+use serde_derive::{Serialize, Deserialize};
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::time::{Duration, Instant};
@@ -95,21 +96,21 @@ impl Sandbox {
             exit_signal: WTERMSIG(status),
             exit_code: WEXITSTATUS(status),
             real_time_cost: self.begin_time.elapsed(),
-            resource_usage: usage,
+            resource_usage: Rusage::from(usage),
         })
     }
 
     /// WARNING:   
     /// Unsafe to use `println!()` (or `unwrap()`) in child process.
     /// See more in `fork()` document.
-    pub fn spawn(&mut self) -> Result<Option<()>, JudgeCoreError> {
+    pub fn spawn(&mut self) -> Result<i32, JudgeCoreError> {
         let now = Instant::now();
         match unsafe { fork() } {
             Ok(ForkResult::Parent { child, .. }) => {
                 log::info!("Forked child pid={}", child);
                 self.child_pid = child.as_raw();
                 self.begin_time = now;
-                Ok(Some(()))
+                Ok(child.as_raw())
             }
             // child process should not return to do things outside `spawn()`
             Ok(ForkResult::Child) => {
@@ -130,13 +131,36 @@ impl Sandbox {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RawRunResultInfo {
     pub exit_status: c_int,
     pub exit_signal: c_int,
     pub exit_code: c_int,
     pub real_time_cost: Duration,
-    pub resource_usage: rusage,
+    pub resource_usage: Rusage,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Rusage {
+    pub user_time: Duration,
+    pub system_time: Duration,
+    pub max_rss: i64,
+    pub page_faults: i64,
+    pub involuntary_context_switches: i64,
+    pub voluntary_context_switches: i64,
+}
+
+impl From<rusage> for Rusage {
+    fn from(rusage: rusage) -> Self {
+        Self {
+            user_time: Duration::new(rusage.ru_utime.tv_sec as u64, rusage.ru_utime.tv_usec as u32 * 1000),
+            system_time: Duration::new(rusage.ru_stime.tv_sec as u64, rusage.ru_stime.tv_usec as u32 * 1000),
+            max_rss: rusage.ru_maxrss,
+            page_faults: rusage.ru_majflt,
+            involuntary_context_switches: rusage.ru_nivcsw,
+            voluntary_context_switches: rusage.ru_nvcsw,
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone)]

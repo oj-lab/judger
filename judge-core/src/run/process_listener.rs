@@ -1,6 +1,7 @@
-use super::sandbox::Sandbox;
+use super::sandbox::{RawRunResultInfo, Sandbox};
 use crate::error::JudgeCoreError;
 use nix::unistd::{fork, write, ForkResult};
+use serde_derive::{Deserialize, Serialize};
 use std::os::unix::io::RawFd;
 use std::time::Instant;
 
@@ -30,14 +31,19 @@ impl ProcessListener {
         self.exit_signal = exit_signal;
     }
 
-    fn report_exit(&self) {
+    fn report_exit(&self, option_run_result: Option<RawRunResultInfo>) {
         if self.child_exit_fd != -1 {
             log::info!(
                 "Report child {} exit to fd {}.",
                 self.pid,
                 self.child_exit_fd
             );
-            let buf = [self.exit_signal];
+            let msg = ProcessExitMessage {
+                exit_signal: self.exit_signal,
+                option_run_result,
+            };
+            let msgbuf = serde_json::to_vec(&msg).unwrap();
+            let buf = [msgbuf].concat();
             write(self.child_exit_fd, &buf).unwrap();
         }
     }
@@ -54,16 +60,13 @@ impl ProcessListener {
                 Ok(Some(()))
             }
             Ok(ForkResult::Child) => {
-                log::debug!("Child process {} start.", self.pid);
                 let process = sandbox.spawn()?;
-                if process.is_some() {
-                    // listen to the status of sandbox
-                    log::debug!("Wait for process {}.", self.pid);
-                    let _result = sandbox.wait()?;
-                    self.pid = sandbox.child_pid;
-                    self.report_exit();
-                    // how to send the result to parent???
-                }
+                // listen to the status of sandbox
+                log::debug!("Wait for process {}.", process);
+                let run_result = sandbox.wait()?;
+                log::debug!("Process {} exit.", process);
+                self.pid = sandbox.child_pid;
+                self.report_exit(Some(run_result));
                 Ok(None)
             }
             Err(_) => {
@@ -71,4 +74,10 @@ impl ProcessListener {
             }
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProcessExitMessage {
+    pub exit_signal: u8,
+    pub option_run_result: Option<RawRunResultInfo>,
 }

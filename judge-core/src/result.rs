@@ -1,10 +1,10 @@
 use crate::run::sandbox::RawRunResultInfo;
-use std::fmt;
+use std::{fmt, time::Duration, ops::Add};
 
 #[derive(Debug)]
 pub struct JudgeResultInfo {
     pub verdict: JudgeVerdict,
-    pub time: i64,
+    pub time: Duration,
     pub memory: i64,
     pub exit_status: i32,
     pub checker_exit_status: i32,
@@ -27,16 +27,16 @@ impl fmt::Display for JudgeVerdict {
     }
 }
 
-pub fn get_run_time(raw_info: &RawRunResultInfo) -> i64 {
-    let rusage = raw_info.resource_usage;
-    let utime = rusage.ru_utime.tv_sec * 1000 + rusage.ru_utime.tv_usec / 1000;
-    let stime = rusage.ru_utime.tv_sec * 1000 + rusage.ru_utime.tv_usec / 1000;
-    utime + stime
+pub fn get_run_time(raw_info: &RawRunResultInfo) -> Duration {
+    let rusage = &raw_info.resource_usage;
+    let utime = rusage.user_time;
+    let stime = rusage.system_time;
+    utime.add(stime)
 }
 
 pub fn get_max_mem(raw_info: &RawRunResultInfo) -> i64 {
-    let rusage = raw_info.resource_usage;
-    rusage.ru_maxrss
+    let rusage = &raw_info.resource_usage;
+    rusage.max_rss
 }
 
 pub fn check_user_result(raw_info: &RawRunResultInfo) -> Option<JudgeVerdict> {

@@ -11,6 +11,8 @@ use nix::sys::epoll::{
 };
 use nix::unistd::{pipe, read, write};
 use std::fs::File;
+use std::io::{BufReader, BufRead};
+use std::os::fd::FromRawFd;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
 
@@ -140,25 +142,52 @@ pub fn run_interact(
     )?;
     let _interact_spawn = interact_listener.spawn_with_sandbox(&mut interact_sandbox)?;
 
+    log::debug!("Starting epoll");
     let mut events = [EpollEvent::empty(); 128];
     loop {
         let num_events = epoll_wait(epoll_fd, &mut events, -1)?;
         log::debug!("{} events found!", num_events);
-        let mut exited = false;
+        let mut user_exited = false;
+        let mut interactor_exited = false;
         for event in events.iter().take(num_events) {
             let fd = event.data() as RawFd;
-            if fd == user_exit_read || fd == interactor_exit_read {
+            if fd == user_exit_read {
                 log::debug!("{:?} fd exited", fd);
-                exited = true;
+                user_exited = true;
+                let mut buf: Vec<u8> = Vec::new();
+                unsafe {
+                    let mut reader = BufReader::new(File::from_raw_fd(fd as RawFd));
+                    reader.read_until(b'\n', &mut buf)?;
+                }
+                let result_info = serde_json::from_slice(&buf)?;
+                log::debug!("Result info: {:?}", result_info);
+
+                break;
+            }
+
+            if fd == interactor_exit_read {
+                log::debug!("{:?} fd exited", fd);
+                interactor_exited = true;
+                let mut buf: Vec<u8> = Vec::new();
+                unsafe {
+                    let mut reader = BufReader::new(File::from_raw_fd(fd as RawFd));
+                    reader.read_until(b'\n', &mut buf)?;
+                }
+                let result_info = serde_json::from_slice(&buf)?;
+                log::debug!("Result info: {:?}", result_info);
+
                 break;
             }
             if fd == proxy_read_user {
+                log::debug!("proxy_read_user {} fd read", fd);
                 pump_proxy_pipe(proxy_read_user, proxy_write_interactor, output_raw_fd);
-            } else if fd == proxy_read_interactor {
+            }
+            if fd == proxy_read_interactor {
+                log::debug!("proxy_read_interactor {} fd read", fd);
                 pump_proxy_pipe(proxy_read_interactor, proxy_write_user, output_raw_fd);
             }
         }
-        if exited {
+        if user_exited && interactor_exited {
             break;
         }
     }
