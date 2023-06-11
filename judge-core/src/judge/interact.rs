@@ -281,7 +281,7 @@ pub mod interact_judge_test {
         };
         let result = run_interact(
             &runner_config,
-            &String::from("../test-collection/dist/checkers/interactor-a-plus-b"),
+            &String::from("../test-collection/dist/checkers/interactor-echo"),
             &String::from("../tmp/interactor"),
         );
         match result {
