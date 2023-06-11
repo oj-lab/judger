@@ -1,7 +1,9 @@
 use crate::compiler::Language;
 use crate::error::JudgeCoreError;
+use crate::judge::common::run_checker;
+use crate::result::{check_user_result, JudgeResultInfo, JudgeVerdict};
 use crate::run::executor::Executor;
-use crate::run::process_listener::ProcessListener;
+use crate::run::process_listener::{ProcessExitMessage, ProcessListener};
 use crate::run::sandbox::{RawRunResultInfo, Sandbox, SCRIPT_LIMIT_CONFIG};
 
 use nix::errno::Errno;
@@ -13,32 +15,68 @@ use nix::unistd::{pipe, read, write};
 use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
+use std::time::Duration;
 
 use super::JudgeConfig;
 
-fn set_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
+fn set_fd_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
     log::debug!("Setting fd={} to non blocking", fd);
     Ok(fcntl(fd, FcntlArg::F_SETFL(OFlag::O_NONBLOCK))?)
 }
 
-// write the content of `from` to `to`, record to output
-fn pump_proxy_pipe(from: RawFd, to: RawFd, output: RawFd) {
+/// write the content of `from` to `to`, record to output.
+/// `from` will be set to non-blocking mode.
+fn pump_proxy_pipe(from: RawFd, to: RawFd, output: RawFd) -> Result<(), JudgeCoreError> {
+    set_fd_non_blocking(from)?;
+
     let mut buf = [0; 1024];
     loop {
         match read(from, &mut buf) {
             Ok(nread) => {
                 log::debug!("{} read. {} -> {}", nread, from, to);
-                write(to, &buf[..nread]).ok();
-                write(output, &buf[..nread]).ok();
+                write(to, &buf[..nread])?;
+                write(output, &buf[..nread])?;
             }
             Err(e) => {
                 if e == Errno::EAGAIN || e == Errno::EWOULDBLOCK {
-                    return;
+                    return Ok(());
                 }
                 panic!("failed to read from pipe");
             }
         }
     }
+}
+
+/// `from` will be set to non-blocking mode.
+fn read_string_from_fd(from: RawFd) -> Result<String, JudgeCoreError> {
+    set_fd_non_blocking(from)?;
+
+    let mut res_buf = Vec::new();
+    let mut buf = [0; 1024];
+    log::debug!("Reading from fd={}", from);
+    loop {
+        log::debug!("Reading from fd={}", from);
+        match read(from, &mut buf) {
+            Ok(nread) => {
+                log::debug!("{} read. {}", nread, from);
+                res_buf.extend_from_slice(&buf[..nread]);
+            }
+            Err(e) => {
+                if e == Errno::EAGAIN || e == Errno::EWOULDBLOCK {
+                    let buf_string = String::from_utf8(res_buf)?;
+                    return Ok(buf_string);
+                }
+                panic!("failed to read from pipe");
+            }
+        }
+    }
+}
+
+fn read_msg_from_fd(from: RawFd) -> Result<ProcessExitMessage, JudgeCoreError> {
+    let buf_string = read_string_from_fd(from as RawFd)?;
+    log::debug!("Raw Result info: {}", buf_string);
+    let msg: ProcessExitMessage = serde_json::from_str(&buf_string)?;
+    Ok(msg)
 }
 
 fn add_epoll_fd(epoll_fd: RawFd, fd: RawFd) -> Result<(), JudgeCoreError> {
@@ -56,40 +94,28 @@ pub fn run_interact(
     runner_config: &JudgeConfig,
     interactor_path: &str,
     output_path: &String,
-) -> Result<Option<RawRunResultInfo>, JudgeCoreError> {
-    log::debug!("Creating sandbox for user process");
-    let mut user_listener = ProcessListener::new()?;
-    log::debug!("Creating sandbox for interactor process");
-    let mut interact_listener = ProcessListener::new()?;
+) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
+    log::debug!("Creating epoll");
+    let epoll_fd = epoll_create1(EpollCreateFlags::EPOLL_CLOEXEC)?;
 
-    log::debug!("Creating pipes");
+    log::debug!("Creating interact pipes");
     let (proxy_read_user, user_write_proxy) = pipe()?;
     let (proxy_read_interactor, interactor_write_proxy) = pipe()?;
     let (user_read_proxy, proxy_write_user) = pipe()?;
     let (interactor_read_proxy, proxy_write_interactor) = pipe()?;
 
-    // epoll will listen to the write event
-    // when should it be non blocking???
-    log::debug!("Setting pipes to non blocking");
-    set_non_blocking(user_write_proxy)?;
-    set_non_blocking(interactor_write_proxy)?;
-    set_non_blocking(proxy_read_user)?;
-    set_non_blocking(proxy_read_interactor)?;
-
-    log::debug!("Creating epoll");
-    let epoll_fd = epoll_create1(EpollCreateFlags::EPOLL_CLOEXEC)?;
-
-    log::debug!("Adding fds to epoll");
+    log::debug!("Adding read proxy fds to epoll");
     add_epoll_fd(epoll_fd, proxy_read_user)?;
     add_epoll_fd(epoll_fd, proxy_read_interactor)?;
 
-    log::debug!("Creating exit pipes");
+    log::debug!("Creating exit report pipes with epoll");
     let (user_exit_read, user_exit_write) = pipe()?;
     let (interactor_exit_read, interactor_exit_write) = pipe()?;
-
-    log::debug!("Adding exit fds to epoll");
     add_epoll_fd(epoll_fd, user_exit_read)?;
     add_epoll_fd(epoll_fd, interactor_exit_read)?;
+
+    let mut user_listener = ProcessListener::new()?;
+    let mut interact_listener = ProcessListener::new()?;
     user_listener.set_exit_fd(user_exit_write, 41u8);
     interact_listener.set_exit_fd(interactor_exit_write, 42u8);
 
@@ -105,6 +131,7 @@ pub fn run_interact(
         .truncate(true) // Overwrite the whole content of this file
         .open(output_path)?;
     let output_raw_fd: RawFd = output_file.as_raw_fd();
+
     let user_executor = Executor::new(
         runner_config.language,
         PathBuf::from(runner_config.program_path.to_owned()),
@@ -117,7 +144,7 @@ pub fn run_interact(
         Some(user_write_proxy),
         true,
     )?;
-    let _user_spawn = user_listener.spawn_with_sandbox(&mut user_sandbox)?;
+    user_listener.spawn_with_sandbox(&mut user_sandbox)?;
 
     let first_args: String = String::from("");
     let interact_args = vec![
@@ -138,65 +165,90 @@ pub fn run_interact(
         Some(interactor_write_proxy),
         false,
     )?;
-    let _interact_spawn = interact_listener.spawn_with_sandbox(&mut interact_sandbox)?;
+    interact_listener.spawn_with_sandbox(&mut interact_sandbox)?;
 
+    log::debug!("Starting epoll");
     let mut events = [EpollEvent::empty(); 128];
+    let mut user_exited = false;
+    let mut interactor_exited = false;
+    let mut option_user_result: Option<RawRunResultInfo> = None;
     loop {
         let num_events = epoll_wait(epoll_fd, &mut events, -1)?;
         log::debug!("{} events found!", num_events);
-        let mut exited = false;
+
         for event in events.iter().take(num_events) {
+            log::debug!("Event: {:?}", event);
             let fd = event.data() as RawFd;
-            if fd == user_exit_read || fd == interactor_exit_read {
-                log::debug!("{:?} fd exited", fd);
-                exited = true;
-                break;
+            if fd == user_exit_read {
+                log::debug!("{:?} user fd exited", fd);
+                user_exited = true;
+                let exit_msg = read_msg_from_fd(fd)?;
+                option_user_result = exit_msg.option_run_result;
+            }
+            if fd == interactor_exit_read {
+                log::debug!("{:?} interactor fd exited", fd);
+                interactor_exited = true;
+                let _interactor_result: ProcessExitMessage = read_msg_from_fd(fd)?;
             }
             if fd == proxy_read_user {
-                pump_proxy_pipe(proxy_read_user, proxy_write_interactor, output_raw_fd);
-            } else if fd == proxy_read_interactor {
-                pump_proxy_pipe(proxy_read_interactor, proxy_write_user, output_raw_fd);
+                log::debug!("proxy_read_user {} fd read", fd);
+                pump_proxy_pipe(proxy_read_user, proxy_write_interactor, output_raw_fd)?;
+            }
+            if fd == proxy_read_interactor {
+                log::debug!("proxy_read_interactor {} fd read", fd);
+                pump_proxy_pipe(proxy_read_interactor, proxy_write_user, output_raw_fd)?;
             }
         }
-        if exited {
+        if user_exited && interactor_exited {
+            log::debug!("Both user and interactor exited");
             break;
         }
     }
-
     log::debug!("Epoll finished!");
 
-    // TODO: get result from listener
-    // let _user_result = user_process.wait()?;
-    // let _interact_result = interact_process.wait()?;
-    log::debug!("Creating sandbox for checker process");
-    if let Some(checker_path) = runner_config.custom_checker_path.clone() {
-        let first_args = String::from("");
-        let checker_args = vec![
-            first_args,
-            runner_config.input_file_path.to_owned(),
-            runner_config.output_file_path.to_owned(),
-            runner_config.answer_file_path.to_owned(),
-            runner_config.check_file_path.to_owned(),
-        ];
-        let checker_executor =
-            Executor::new(Language::Cpp, PathBuf::from(checker_path), checker_args)?;
-        let mut checker_sandbox =
-            Sandbox::new(checker_executor, SCRIPT_LIMIT_CONFIG, None, None, false)?;
-
-        log::debug!("Spawning checker process");
-        let _checker_spawn = checker_sandbox.spawn()?;
-        log::debug!("Waiting for checker process");
-        let checker_result = checker_sandbox.wait()?;
-        return Ok(Some(checker_result));
+    if let Some(user_result) = option_user_result {
+        let option_user_verdict = check_user_result(&user_result);
+        if let Some(verdict) = option_user_verdict {
+            return Ok(Some(JudgeResultInfo {
+                verdict,
+                time: user_result.real_time_cost,
+                memory: user_result.resource_usage.max_rss,
+                exit_status: user_result.exit_status,
+                checker_exit_status: 0,
+            }));
+        }
+        log::debug!("Running checker process");
+        if let Some(_checker_path) = runner_config.custom_checker_path.clone() {
+            let (verdict, checker_exit_status) = run_checker(runner_config)?;
+            Ok(Some(JudgeResultInfo {
+                verdict,
+                time: user_result.real_time_cost,
+                memory: user_result.resource_usage.max_rss,
+                exit_status: user_result.exit_status,
+                checker_exit_status,
+            }))
+        } else {
+            Err(JudgeCoreError::AnyhowError(anyhow::anyhow!(
+                "Checker path is not provided"
+            )))
+        }
+    } else {
+        // interactor output should be checked here
+        Ok(Some(JudgeResultInfo {
+            verdict: JudgeVerdict::IdlenessLimitExceeded,
+            time: Duration::new(0, 0),
+            memory: 0,
+            exit_status: 0,
+            checker_exit_status: 0,
+        }))
     }
-    Err(JudgeCoreError::AnyhowError(anyhow::anyhow!(
-        "Checker path is not provided"
-    )))
 }
 
 #[cfg(test)]
 pub mod interact_judge_test {
-    use crate::{compiler::Language, judge::JudgeConfig, run::sandbox::RlimitConfigs};
+    use crate::{
+        compiler::Language, judge::JudgeConfig, result::JudgeVerdict, run::sandbox::RlimitConfigs,
+    };
 
     use super::run_interact;
 
@@ -235,6 +287,7 @@ pub mod interact_judge_test {
         match result {
             Ok(Some(result)) => {
                 log::debug!("{:?}", result);
+                assert!(result.verdict == JudgeVerdict::Accepted);
             }
             Ok(None) => {
                 log::debug!("Ignoring this result, for it's from a fork child process");

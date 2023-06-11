@@ -3,6 +3,7 @@ use nix::errno::Errno;
 use std::ffi::NulError;
 use std::io;
 use std::path::PathBuf;
+use std::string::FromUtf8Error;
 
 #[derive(Debug)]
 pub enum JudgeCoreError {
@@ -10,7 +11,9 @@ pub enum JudgeCoreError {
     SeccompError(SeccompError),
     FFINulError(NulError),
     IOError(io::Error),
+    SerdeJsonError(serde_json::Error),
     AnyhowError(anyhow::Error),
+    FromUtf8Error(FromUtf8Error),
 }
 
 impl From<Errno> for JudgeCoreError {
@@ -40,6 +43,18 @@ impl From<io::Error> for JudgeCoreError {
 impl From<anyhow::Error> for JudgeCoreError {
     fn from(error: anyhow::Error) -> JudgeCoreError {
         JudgeCoreError::AnyhowError(error)
+    }
+}
+
+impl From<serde_json::Error> for JudgeCoreError {
+    fn from(error: serde_json::Error) -> JudgeCoreError {
+        JudgeCoreError::SerdeJsonError(error)
+    }
+}
+
+impl From<FromUtf8Error> for JudgeCoreError {
+    fn from(error: FromUtf8Error) -> JudgeCoreError {
+        JudgeCoreError::FromUtf8Error(error)
     }
 }
 
