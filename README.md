@@ -20,18 +20,9 @@ We'll consider other platform, but in a lower priority.
 If you are not familiar with system stuff.
 Developing judger-rs in local computer can be dangerous.
 
-We setup `.gitpod.yml` for this project.
-When you open this project in a **gitpod workplace**, you'll get everything necessary installed. And docker contained workplace can give you chances to make mistake.
-
-And we pre-install strace for helping you analysing syscalls.
-
-## Before run
-
-judger-rs is based on `libseccomp`, so we need to have this library installed.
-
-``` plain-text
-sudo apt install libseccomp-dev
-```
+Github codespace is the currently the most perfered approach.
+When first setup the cloud machine, run `ENV_SETUP.bash` to get essentials,
+also install the recommended plugins provided in VSCode.
 
 ## Run by admin
 
@@ -42,3 +33,7 @@ You need to install **Rust** in root user.
 su
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
+
+## Contribute
+
+We have a guide in judger's [WIKI](https://github.com/OJ-lab/judger/wiki/Contribution-Guide)
