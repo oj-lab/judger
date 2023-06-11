@@ -1,6 +1,7 @@
 use crate::compiler::Language;
 use crate::error::JudgeCoreError;
-use crate::result::{check_user_result, JudgeResultInfo, check_checker_result};
+use crate::judge::common::run_checker;
+use crate::result::{check_user_result, JudgeResultInfo, JudgeVerdict};
 use crate::run::executor::Executor;
 use crate::run::process_listener::{ProcessExitMessage, ProcessListener};
 use crate::run::sandbox::{RawRunResultInfo, Sandbox, SCRIPT_LIMIT_CONFIG};
@@ -14,6 +15,7 @@ use nix::unistd::{pipe, read, write};
 use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
+use std::time::Duration;
 
 use super::JudgeConfig;
 
@@ -68,6 +70,13 @@ fn read_string_from_fd(from: RawFd) -> Result<String, JudgeCoreError> {
             }
         }
     }
+}
+
+fn read_msg_from_fd(from: RawFd) -> Result<ProcessExitMessage, JudgeCoreError> {
+    let buf_string = read_string_from_fd(from as RawFd)?;
+    log::debug!("Raw Result info: {}", buf_string);
+    let msg: ProcessExitMessage = serde_json::from_str(&buf_string)?;
+    Ok(msg)
 }
 
 fn add_epoll_fd(epoll_fd: RawFd, fd: RawFd) -> Result<(), JudgeCoreError> {
@@ -173,17 +182,13 @@ pub fn run_interact(
             if fd == user_exit_read {
                 log::debug!("{:?} user fd exited", fd);
                 user_exited = true;
-                let buf_string = read_string_from_fd(fd as RawFd)?;
-                log::debug!("Raw Result info: {}", buf_string);
-                let exit_msg: ProcessExitMessage = serde_json::from_str(&buf_string)?;
+                let exit_msg = read_msg_from_fd(fd)?;
                 option_user_result = exit_msg.option_run_result;
             }
             if fd == interactor_exit_read {
                 log::debug!("{:?} interactor fd exited", fd);
                 interactor_exited = true;
-                let buf_string = read_string_from_fd(fd as RawFd)?;
-                log::debug!("Raw Result info: {}", buf_string);
-                let _interactor_result: ProcessExitMessage = serde_json::from_str(&buf_string)?;
+                let _interactor_result: ProcessExitMessage = read_msg_from_fd(fd)?;
             }
             if fd == proxy_read_user {
                 log::debug!("proxy_read_user {} fd read", fd);
@@ -212,45 +217,38 @@ pub fn run_interact(
                 checker_exit_status: 0,
             }));
         }
-    }
-
-    log::debug!("Creating sandbox for checker process");
-    if let Some(checker_path) = runner_config.custom_checker_path.clone() {
-        let first_args = String::from("");
-        let checker_args = vec![
-            first_args,
-            runner_config.input_file_path.to_owned(),
-            runner_config.output_file_path.to_owned(),
-            runner_config.answer_file_path.to_owned(),
-            runner_config.check_file_path.to_owned(),
-        ];
-        let checker_executor =
-            Executor::new(Language::Cpp, PathBuf::from(checker_path), checker_args)?;
-        let mut checker_sandbox =
-            Sandbox::new(checker_executor, SCRIPT_LIMIT_CONFIG, None, None, false)?;
-
-        log::debug!("Spawning checker process");
-        let _checker_spawn = checker_sandbox.spawn()?;
-        log::debug!("Waiting for checker process");
-        let checker_result = checker_sandbox.wait()?;
-        let checker_verdict = check_checker_result(&checker_result);
-        Ok(Some(JudgeResultInfo {
-            verdict: checker_verdict,
-            time: checker_result.real_time_cost,
-            memory: checker_result.resource_usage.max_rss,
-            exit_status: checker_result.exit_status,
-            checker_exit_status: checker_result.exit_status,
-        }))
+        log::debug!("Running checker process");
+        if let Some(_checker_path) = runner_config.custom_checker_path.clone() {
+            let (verdict, checker_exit_status) = run_checker(runner_config)?;
+            Ok(Some(JudgeResultInfo {
+                verdict,
+                time: user_result.real_time_cost,
+                memory: user_result.resource_usage.max_rss,
+                exit_status: user_result.exit_status,
+                checker_exit_status,
+            }))
+        } else {
+            Err(JudgeCoreError::AnyhowError(anyhow::anyhow!(
+                "Checker path is not provided"
+            )))
+        }
     } else {
-        Err(JudgeCoreError::AnyhowError(anyhow::anyhow!(
-            "Checker path is not provided"
-        )))
+        // interactor output should be checked here
+        Ok(Some(JudgeResultInfo {
+            verdict: JudgeVerdict::IdlenessLimitExceeded,
+            time: Duration::new(0, 0),
+            memory: 0,
+            exit_status: 0,
+            checker_exit_status: 0,
+        }))
     }
 }
 
 #[cfg(test)]
 pub mod interact_judge_test {
-    use crate::{compiler::Language, judge::JudgeConfig, run::sandbox::RlimitConfigs};
+    use crate::{
+        compiler::Language, judge::JudgeConfig, result::JudgeVerdict, run::sandbox::RlimitConfigs,
+    };
 
     use super::run_interact;
 
@@ -289,6 +287,7 @@ pub mod interact_judge_test {
         match result {
             Ok(Some(result)) => {
                 log::debug!("{:?}", result);
+                assert!(result.verdict == JudgeVerdict::Accepted);
             }
             Ok(None) => {
                 log::debug!("Ignoring this result, for it's from a fork child process");

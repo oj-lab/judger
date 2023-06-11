@@ -63,7 +63,7 @@ fn run_user(
     ))
 }
 
-fn run_checker(runner_config: &JudgeConfig) -> Result<(JudgeVerdict, i32), JudgeCoreError> {
+pub fn run_checker(runner_config: &JudgeConfig) -> Result<(JudgeVerdict, i32), JudgeCoreError> {
     let checker_path = runner_config.custom_checker_path.clone().unwrap();
     let first_args = String::from("");
     let checker_args = vec![
