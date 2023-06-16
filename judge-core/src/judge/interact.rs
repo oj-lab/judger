@@ -20,6 +20,9 @@ use std::time::Duration;
 use super::JudgeConfig;
 use super::result::JudgeResultInfo;
 
+const USER_EXIT_SIGNAL: u8 = 41u8;
+const INTERACTOR_EXIT_SIGNAL: u8 = 42u8;
+
 fn set_fd_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
     log::debug!("Setting fd={} to non blocking", fd);
     Ok(fcntl(fd, FcntlArg::F_SETFL(OFlag::O_NONBLOCK))?)
@@ -117,8 +120,8 @@ pub fn run_interact(
 
     let mut user_listener = ProcessListener::new()?;
     let mut interact_listener = ProcessListener::new()?;
-    user_listener.set_exit_fd(user_exit_write, 41u8);
-    interact_listener.set_exit_fd(interactor_exit_write, 42u8);
+    user_listener.setup_exit_report(user_exit_write, USER_EXIT_SIGNAL);
+    interact_listener.setup_exit_report(interactor_exit_write, INTERACTOR_EXIT_SIGNAL);
 
     log::debug!(
         "Opening output file path={}",
