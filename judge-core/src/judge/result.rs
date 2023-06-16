@@ -4,8 +4,8 @@ use std::{fmt, ops::Add, time::Duration};
 #[derive(Debug)]
 pub struct JudgeResultInfo {
     pub verdict: JudgeVerdict,
-    pub time: Duration,
-    pub memory: i64,
+    pub time_usage: Duration,
+    pub memory_usage_bytes: i64,
     pub exit_status: i32,
     pub checker_exit_status: i32,
 }

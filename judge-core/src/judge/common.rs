@@ -1,14 +1,13 @@
 use crate::compiler::Language;
-use crate::result::{
-    check_checker_result, check_user_result, get_max_mem, get_run_time, JudgeVerdict,
-};
+use crate::judge::result::{JudgeResultInfo, check_checker_result, check_user_result, get_max_mem, get_run_time};
 use crate::run::sandbox::SCRIPT_LIMIT_CONFIG;
 use crate::utils::compare_files;
 use crate::{
-    error::JudgeCoreError, result::JudgeResultInfo, run::executor::Executor, run::sandbox::Sandbox,
+    error::JudgeCoreError, run::executor::Executor, run::sandbox::Sandbox,
 };
 
 use super::JudgeConfig;
+use super::result::JudgeVerdict;
 
 use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -93,8 +92,8 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
     if let Some(verdict) = user_verdict {
         return Ok(Some(JudgeResultInfo {
             verdict,
-            time: user_time,
-            memory: max_mem,
+            time_usage: user_time,
+            memory_usage_bytes: max_mem,
             exit_status: user_exit_status,
             checker_exit_status: 0,
         }));
@@ -105,8 +104,8 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
         let (verdict, checker_exit_status) = run_checker(runner_config)?;
         Ok(Some(JudgeResultInfo {
             verdict,
-            time: user_time,
-            memory: max_mem,
+            time_usage: user_time,
+            memory_usage_bytes: max_mem,
             exit_status: user_exit_status,
             checker_exit_status,
         }))
@@ -116,16 +115,16 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
     ) {
         Ok(Some(JudgeResultInfo {
             verdict: JudgeVerdict::Accepted,
-            time: user_time,
-            memory: max_mem,
+            time_usage: user_time,
+            memory_usage_bytes: max_mem,
             exit_status: user_exit_status,
             checker_exit_status: 0,
         }))
     } else {
         Ok(Some(JudgeResultInfo {
             verdict: JudgeVerdict::WrongAnswer,
-            time: user_time,
-            memory: max_mem,
+            time_usage: user_time,
+            memory_usage_bytes: max_mem,
             exit_status: user_exit_status,
             checker_exit_status: 0,
         }))
@@ -135,7 +134,7 @@ pub fn run_judge(runner_config: &JudgeConfig) -> Result<Option<JudgeResultInfo>,
 #[cfg(test)]
 pub mod common_judge_tests {
     use crate::{
-        compiler::Language, judge::JudgeConfig, result::JudgeVerdict, run::sandbox::RlimitConfigs,
+        compiler::Language, judge::{JudgeConfig, result::JudgeVerdict}, run::sandbox::RlimitConfigs,
     };
 
     use super::run_judge;

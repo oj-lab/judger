@@ -1,7 +1,7 @@
 use crate::compiler::Language;
 use crate::error::JudgeCoreError;
 use crate::judge::common::run_checker;
-use crate::result::{check_user_result, JudgeResultInfo, JudgeVerdict};
+use crate::judge::result::{check_user_result, JudgeVerdict};
 use crate::run::executor::Executor;
 use crate::run::process_listener::{ProcessExitMessage, ProcessListener};
 use crate::run::sandbox::{RawRunResultInfo, Sandbox, SCRIPT_LIMIT_CONFIG};
@@ -18,6 +18,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use super::JudgeConfig;
+use super::result::JudgeResultInfo;
 
 fn set_fd_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
     log::debug!("Setting fd={} to non blocking", fd);
@@ -211,8 +212,8 @@ pub fn run_interact(
         if let Some(verdict) = option_user_verdict {
             return Ok(Some(JudgeResultInfo {
                 verdict,
-                time: user_result.real_time_cost,
-                memory: user_result.resource_usage.max_rss,
+                time_usage: user_result.real_time_cost,
+                memory_usage_bytes: user_result.resource_usage.max_rss,
                 exit_status: user_result.exit_status,
                 checker_exit_status: 0,
             }));
@@ -222,8 +223,8 @@ pub fn run_interact(
             let (verdict, checker_exit_status) = run_checker(runner_config)?;
             Ok(Some(JudgeResultInfo {
                 verdict,
-                time: user_result.real_time_cost,
-                memory: user_result.resource_usage.max_rss,
+                time_usage: user_result.real_time_cost,
+                memory_usage_bytes: user_result.resource_usage.max_rss,
                 exit_status: user_result.exit_status,
                 checker_exit_status,
             }))
@@ -236,8 +237,8 @@ pub fn run_interact(
         // interactor output should be checked here
         Ok(Some(JudgeResultInfo {
             verdict: JudgeVerdict::IdlenessLimitExceeded,
-            time: Duration::new(0, 0),
-            memory: 0,
+            time_usage: Duration::new(0, 0),
+            memory_usage_bytes: 0,
             exit_status: 0,
             checker_exit_status: 0,
         }))
@@ -247,7 +248,7 @@ pub fn run_interact(
 #[cfg(test)]
 pub mod interact_judge_test {
     use crate::{
-        compiler::Language, judge::JudgeConfig, result::JudgeVerdict, run::sandbox::RlimitConfigs,
+        compiler::Language, judge::{JudgeConfig, result::JudgeVerdict}, run::sandbox::RlimitConfigs,
     };
 
     use super::run_interact;

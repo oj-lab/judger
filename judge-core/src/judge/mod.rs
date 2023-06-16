@@ -2,6 +2,7 @@ use crate::{compiler::Language, run::sandbox::RlimitConfigs};
 
 pub mod common;
 pub mod interact;
+pub mod result;
 
 #[derive(Debug, Clone)]
 pub struct JudgeConfig {
