@@ -1,9 +1,10 @@
 use crate::error::{path_not_exist, JudgeCoreError};
 use crate::{compiler::Language, utils::get_pathbuf_str};
 use nix::unistd::execve;
+use serde_derive::Serialize;
 use std::{convert::Infallible, ffi::CString, path::PathBuf};
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Executor {
     pub language: Language,
     pub path: PathBuf,
@@ -11,11 +12,7 @@ pub struct Executor {
 }
 
 impl Executor {
-    pub fn new(
-        language: Language,
-        path: PathBuf,
-        additional_args: Vec<String>,
-    ) -> Result<Self, JudgeCoreError> {
+    pub fn new(language: Language, path: PathBuf) -> Result<Self, JudgeCoreError> {
         if !path.exists() {
             return Err(path_not_exist(&path));
         }
@@ -23,12 +20,16 @@ impl Executor {
         Ok(Self {
             language,
             path,
-            additional_args,
+            additional_args: vec![],
         })
     }
 
+    pub fn set_additional_args(&mut self, args: Vec<String>) {
+        self.additional_args = args;
+    }
+
     pub fn exec(&self) -> Result<Infallible, JudgeCoreError> {
-        let (command, args) = self.build_cmd_args()?;
+        let (command, args) = self.build_execute_cmd_with_args()?;
         let mut final_args = args;
         final_args.extend(self.additional_args.clone());
         let c_args = final_args
@@ -43,13 +44,14 @@ impl Executor {
         )?)
     }
 
-    fn build_cmd_args(&self) -> Result<(String, Vec<String>), JudgeCoreError> {
+    fn build_execute_cmd_with_args(&self) -> Result<(String, Vec<String>), JudgeCoreError> {
         let path_string = get_pathbuf_str(&self.path)?;
         let command = match self.language {
-            Language::Rust => path_string.to_owned(),
-            Language::Cpp => path_string.to_owned(),
-            Language::Python => "/usr/bin/python3".to_owned(),
-        };
+            Language::Rust => &path_string,
+            Language::Cpp => &path_string,
+            Language::Python => "/usr/bin/python3",
+        }
+        .to_owned();
         let args = match self.language {
             Language::Rust => vec![],
             Language::Cpp => vec![],

@@ -40,9 +40,7 @@ impl ProcessListener {
         sandbox: &mut Sandbox,
     ) -> Result<Option<()>, JudgeCoreError> {
         match unsafe { fork() } {
-            Ok(ForkResult::Parent { .. }) => {
-                Ok(Some(()))
-            }
+            Ok(ForkResult::Parent { .. }) => Ok(Some(())),
             Ok(ForkResult::Child) => {
                 let process = sandbox.spawn()?;
                 // listen to the status of sandbox
