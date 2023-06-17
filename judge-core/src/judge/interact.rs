@@ -1,10 +1,10 @@
-use crate::compiler::Language;
 use crate::error::JudgeCoreError;
 use crate::judge::common::run_checker;
-use crate::result::{check_user_result, JudgeResultInfo, JudgeVerdict};
+use crate::judge::result::{check_user_result, JudgeVerdict};
 use crate::run::executor::Executor;
 use crate::run::process_listener::{ProcessExitMessage, ProcessListener};
 use crate::run::sandbox::{RawRunResultInfo, Sandbox, SCRIPT_LIMIT_CONFIG};
+use crate::utils::get_pathbuf_str;
 
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
@@ -17,7 +17,11 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
 use std::time::Duration;
 
+use super::result::JudgeResultInfo;
 use super::JudgeConfig;
+
+const USER_EXIT_SIGNAL: u8 = 41u8;
+const INTERACTOR_EXIT_SIGNAL: u8 = 42u8;
 
 fn set_fd_non_blocking(fd: RawFd) -> Result<libc::c_int, JudgeCoreError> {
     log::debug!("Setting fd={} to non blocking", fd);
@@ -91,8 +95,8 @@ fn add_epoll_fd(epoll_fd: RawFd, fd: RawFd) -> Result<(), JudgeCoreError> {
 }
 
 pub fn run_interact(
-    runner_config: &JudgeConfig,
-    interactor_path: &str,
+    config: &JudgeConfig,
+    mut interactor_executor: Executor,
     output_path: &String,
 ) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
     log::debug!("Creating epoll");
@@ -116,13 +120,9 @@ pub fn run_interact(
 
     let mut user_listener = ProcessListener::new()?;
     let mut interact_listener = ProcessListener::new()?;
-    user_listener.set_exit_fd(user_exit_write, 41u8);
-    interact_listener.set_exit_fd(interactor_exit_write, 42u8);
+    user_listener.setup_exit_report(user_exit_write, USER_EXIT_SIGNAL);
+    interact_listener.setup_exit_report(interactor_exit_write, INTERACTOR_EXIT_SIGNAL);
 
-    log::debug!(
-        "Opening output file path={}",
-        runner_config.output_file_path
-    );
     if !PathBuf::from(&output_path).exists() {
         File::create(output_path)?;
     }
@@ -132,14 +132,9 @@ pub fn run_interact(
         .open(output_path)?;
     let output_raw_fd: RawFd = output_file.as_raw_fd();
 
-    let user_executor = Executor::new(
-        runner_config.language,
-        PathBuf::from(runner_config.program_path.to_owned()),
-        vec![String::from("")],
-    )?;
     let mut user_sandbox = Sandbox::new(
-        user_executor,
-        runner_config.rlimit_configs.clone(),
+        config.program.executor.clone(),
+        config.runtime.rlimit_configs.clone(),
         Some(user_read_proxy),
         Some(user_write_proxy),
         true,
@@ -149,17 +144,13 @@ pub fn run_interact(
     let first_args: String = String::from("");
     let interact_args = vec![
         first_args,
-        runner_config.input_file_path.to_owned(),
-        runner_config.output_file_path.to_owned(),
-        runner_config.answer_file_path.to_owned(),
+        get_pathbuf_str(&config.test_data.input_file_path)?,
+        get_pathbuf_str(&config.program.output_file_path)?,
+        get_pathbuf_str(&config.test_data.answer_file_path)?,
     ];
-    let interact_executor = Executor::new(
-        Language::Cpp,
-        PathBuf::from(interactor_path.to_string()),
-        interact_args,
-    )?;
+    interactor_executor.set_additional_args(interact_args);
     let mut interact_sandbox = Sandbox::new(
-        interact_executor,
+        interactor_executor,
         SCRIPT_LIMIT_CONFIG,
         Some(interactor_read_proxy),
         Some(interactor_write_proxy),
@@ -211,19 +202,19 @@ pub fn run_interact(
         if let Some(verdict) = option_user_verdict {
             return Ok(Some(JudgeResultInfo {
                 verdict,
-                time: user_result.real_time_cost,
-                memory: user_result.resource_usage.max_rss,
+                time_usage: user_result.real_time_cost,
+                memory_usage_bytes: user_result.resource_usage.max_rss,
                 exit_status: user_result.exit_status,
                 checker_exit_status: 0,
             }));
         }
         log::debug!("Running checker process");
-        if let Some(_checker_path) = runner_config.custom_checker_path.clone() {
-            let (verdict, checker_exit_status) = run_checker(runner_config)?;
+        if let Some(_checker_executor) = config.checker.executor.clone() {
+            let (verdict, checker_exit_status) = run_checker(config)?;
             Ok(Some(JudgeResultInfo {
                 verdict,
-                time: user_result.real_time_cost,
-                memory: user_result.resource_usage.max_rss,
+                time_usage: user_result.real_time_cost,
+                memory_usage_bytes: user_result.resource_usage.max_rss,
                 exit_status: user_result.exit_status,
                 checker_exit_status,
             }))
@@ -236,8 +227,8 @@ pub fn run_interact(
         // interactor output should be checked here
         Ok(Some(JudgeResultInfo {
             verdict: JudgeVerdict::IdlenessLimitExceeded,
-            time: Duration::new(0, 0),
-            memory: 0,
+            time_usage: Duration::new(0, 0),
+            memory_usage_bytes: 0,
             exit_status: 0,
             checker_exit_status: 0,
         }))
@@ -246,8 +237,15 @@ pub fn run_interact(
 
 #[cfg(test)]
 pub mod interact_judge_test {
+    use std::path::PathBuf;
+
     use crate::{
-        compiler::Language, judge::JudgeConfig, result::JudgeVerdict, run::sandbox::RlimitConfigs,
+        compiler::Language,
+        judge::{
+            result::JudgeVerdict, CheckerConfig, JudgeConfig, ProgramConfig, RuntimeConfig,
+            TestDataConfig,
+        },
+        run::{executor::Executor, sandbox::RlimitConfigs},
     };
 
     use super::run_interact;
@@ -266,22 +264,50 @@ pub mod interact_judge_test {
             .try_init();
     }
 
+    fn build_test_config(program_executor: Executor) -> JudgeConfig {
+        JudgeConfig {
+            runtime: RuntimeConfig {
+                rlimit_configs: TEST_CONFIG,
+            },
+            test_data: TestDataConfig {
+                input_file_path: PathBuf::from("../tmp/in"),
+                answer_file_path: PathBuf::from("../tmp/ans"),
+            },
+            checker: CheckerConfig {
+                executor: Some(
+                    Executor::new(
+                        Language::Cpp,
+                        PathBuf::from("./../test-collection/dist/checkers/lcmp"),
+                    )
+                    .unwrap(),
+                ),
+                output_file_path: PathBuf::from("../tmp/check"),
+            },
+            program: ProgramConfig {
+                executor: program_executor,
+                output_file_path: PathBuf::from("../tmp/out"),
+            },
+        }
+    }
+
     #[test]
     fn test_run_interact() {
         init();
-        let runner_config = JudgeConfig {
-            language: Language::Cpp,
-            program_path: "./../test-collection/dist/programs/read_and_write".to_owned(),
-            custom_checker_path: Some("./../test-collection/dist/checkers/lcmp".to_owned()),
-            input_file_path: "../tmp/in".to_owned(),
-            output_file_path: "../tmp/out".to_owned(),
-            answer_file_path: "../tmp/ans".to_owned(),
-            check_file_path: "../tmp/check".to_owned(),
-            rlimit_configs: TEST_CONFIG,
-        };
+
+        let interactor_executor = Executor::new(
+            Language::Cpp,
+            PathBuf::from("./../test-collection/dist/checkers/interactor-echo"),
+        )
+        .unwrap();
+        let program_executor = Executor::new(
+            Language::Cpp,
+            PathBuf::from("./../test-collection/dist/programs/read_and_write"),
+        )
+        .unwrap();
+        let runner_config = build_test_config(program_executor);
         let result = run_interact(
             &runner_config,
-            &String::from("../test-collection/dist/checkers/interactor-echo"),
+            interactor_executor,
             &String::from("../tmp/interactor"),
         );
         match result {

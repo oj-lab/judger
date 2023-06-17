@@ -1,11 +1,43 @@
 use crate::error::JudgeCoreError;
-use crate::utils::{get_pathbuf_str, TemplateCommand};
+use crate::utils::get_pathbuf_str;
 use anyhow::anyhow;
+use serde_derive::Serialize;
 use std::fmt;
 use std::path::PathBuf;
 use std::{process::Command, str::FromStr};
 
-#[derive(Debug, Clone, PartialEq, Copy)]
+const TEMPLATE_ARG_SRC_PATH: &str = "{src_path}";
+const TEMPLATE_ARG_TARGET_PATH: &str = "{target_path}";
+
+const RUST_COMPILE_COMMAND_TEMPLATE: &str = "rustc {src_path} -o {target_path}";
+const CPP_COMPILE_COMMAND_TEMPLATE: &str = "g++ {src_path} -o {target_path}";
+const PYTHON_COMPILE_COMMAND_TEMPLATE: &str = "cp {src_path} {target_path}";
+
+#[derive(Clone)]
+struct CommandBuilder {
+    command_template: String,
+    template_args: Vec<String>,
+}
+
+impl CommandBuilder {
+    pub fn new(command_template: String, template_args: Vec<String>) -> Self {
+        Self {
+            command_template,
+            template_args,
+        }
+    }
+
+    // TODO: check if args match template_args
+    pub fn get_command(&self, args: Vec<String>) -> String {
+        let mut command = self.command_template.to_string();
+        for (i, arg) in self.template_args.iter().enumerate() {
+            command = command.replace(arg, &args[i]);
+        }
+        command
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Copy, Serialize)]
 pub enum Language {
     Rust,
     Cpp,
@@ -40,28 +72,30 @@ impl FromStr for Language {
 #[derive(Clone)]
 pub struct Compiler {
     language: Language,
-    command: TemplateCommand,
+    command_builder: CommandBuilder,
     compiler_args: Vec<String>,
 }
 
 impl Compiler {
     pub fn new(language: Language, compiler_args: Vec<String>) -> Self {
-        let compiler_name = match language {
-            Language::Rust => "rustc {src_path} -o {target_path}".to_string(),
-            Language::Cpp => "g++ {src_path} -o {target_path}".to_string(),
-            Language::Python => "cp {src_path} {target_path}".to_string(),
-            // add other supported language
-        };
+        let command_template = match language {
+            Language::Rust => RUST_COMPILE_COMMAND_TEMPLATE,
+            Language::Cpp => CPP_COMPILE_COMMAND_TEMPLATE,
+            Language::Python => PYTHON_COMPILE_COMMAND_TEMPLATE,
+            // TODO: add other supported language
+        }
+        .to_owned();
         let template_args = match language {
-            Language::Rust => vec!["{src_path}".to_string(), "{target_path}".to_string()],
-            Language::Cpp => vec!["{src_path}".to_string(), "{target_path}".to_string()],
-            Language::Python => vec!["{src_path}".to_string(), "{target_path}".to_string()],
-            // add other supported language
+            Language::Rust | Language::Cpp | Language::Python => vec![
+                TEMPLATE_ARG_SRC_PATH.to_owned(),
+                TEMPLATE_ARG_TARGET_PATH.to_owned(),
+            ],
+            // TODO: add other supported language
         };
-        let command = TemplateCommand::new(compiler_name, template_args);
+        let command_builder = CommandBuilder::new(command_template, template_args);
         Self {
             language,
-            command,
+            command_builder,
             compiler_args,
         }
     }
@@ -96,7 +130,7 @@ impl Compiler {
             .arg("-c")
             .arg(
                 &self
-                    .command
+                    .command_builder
                     .get_command(vec![src_path_string, target_path_string]),
             )
             .args(self.compiler_args.iter())
