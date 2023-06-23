@@ -45,7 +45,7 @@ pub fn check_user_result(raw_info: &RawRunResultInfo) -> Option<JudgeVerdict> {
     match exit_status {
         0 => None,
         11 => Some(JudgeVerdict::RuntimeError),
-        152 => Some(JudgeVerdict::TimeLimitExceeded),
+        152 | 24 => Some(JudgeVerdict::TimeLimitExceeded),
         _ => Some(JudgeVerdict::SystemError),
     }
 }
