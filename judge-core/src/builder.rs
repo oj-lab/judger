@@ -3,78 +3,128 @@ use std::{fs, path::PathBuf};
 use crate::{
     compiler::{Compiler, Language},
     error::{path_not_exist, JudgeCoreError},
-    utils::copy_recursively,
+    judge::{CheckerConfig, ProgramConfig, TestdataConfig},
+    run::executor::Executor,
 };
 
 pub enum PackageType {
     ICPC,
 }
 
+pub enum JudgeType {
+    COMMON,
+    INTERACT,
+}
+
 pub struct JudgeBuilder {
-    package_type: PackageType,
-    package_path: PathBuf,
-    runtime_path: PathBuf,
-    src_language: Language,
-    src_path: PathBuf,
-    built: bool,
+    pub judge_type: JudgeType,
+    pub testdata_configs: Vec<TestdataConfig>,
+    pub program_config: ProgramConfig,
+    pub checker_config: CheckerConfig,
+}
+
+pub struct JudgeBuilderInput {
+    pub package_type: PackageType,
+    pub package_path: PathBuf,
+    pub runtime_path: PathBuf,
+    pub src_language: Language,
+    pub src_path: PathBuf,
 }
 
 impl JudgeBuilder {
-    pub fn new(
-        package_type: PackageType,
-        package_path: PathBuf,
-        runtime_path: PathBuf,
-        src_language: Language,
-        src_path: PathBuf,
-    ) -> Self {
-        Self {
-            package_type,
-            package_path,
-            runtime_path,
-            src_language,
-            src_path,
-            built: false,
+    pub fn new(input: JudgeBuilderInput) -> Result<Self, JudgeCoreError> {
+        Self::build(input)
+    }
+
+    fn build(input: JudgeBuilderInput) -> Result<Self, JudgeCoreError> {
+        match input.package_type {
+            PackageType::ICPC => Ok(Self::build_icpc(input)?),
         }
     }
 
-    pub fn build(&mut self) -> Result<(), JudgeCoreError> {
-        match self.package_type {
-            PackageType::ICPC => self.build_icpc(),
-        }
-    }
-
-    fn build_icpc(&mut self) -> Result<(), JudgeCoreError> {
-        fs::create_dir_all(self.runtime_path.clone())?;
+    fn build_icpc(input: JudgeBuilderInput) -> Result<Self, JudgeCoreError> {
+        fs::create_dir_all(input.runtime_path.clone())?;
         // copy checker to runtime path
-        let package_output_validators_path = self.package_path.join("output_validators");
+        let package_output_validators_path = input.package_path.join("output_validators");
         if package_output_validators_path.exists() {
             log::warn!("Output validators found, but not supported yet");
         } else {
             log::info!("No output validators found, using default checker");
         }
+        let checker_config = CheckerConfig {
+            executor: None,
+            output_file_path: input.runtime_path.join("checker.out"),
+        };
+        let testdata_configs: Vec<TestdataConfig>;
         // copy testcases to runtime path
-        let package_testcases_path = self.package_path.join("data");
-        let runtime_testcases_path = self.runtime_path.join("data");
+        let package_testcases_path = input.package_path.join("data");
+        let runtime_testcases_path = input.runtime_path.join("data");
         if package_testcases_path.exists() {
-            copy_recursively(&package_testcases_path, &runtime_testcases_path)?;
+            testdata_configs =
+                copy_testdata_recursively(&package_testcases_path, &runtime_testcases_path)?;
         } else {
             return Err(path_not_exist(&package_testcases_path));
         }
-        if self.src_path.exists() {
-            let compiler = Compiler::new(self.src_language, vec![]);
-            compiler.compile(&self.src_path, &self.runtime_path.join("program"))?;
+
+        let program_config: ProgramConfig;
+        if input.src_path.exists() {
+            let compiler = Compiler::new(input.src_language, vec![]);
+            compiler.compile(&input.src_path, &input.runtime_path.join("program"))?;
+            program_config = ProgramConfig {
+                executor: Executor::new(input.src_language, input.runtime_path.join("program"))?,
+                output_file_path: input.runtime_path.join("program.out"),
+            };
         } else {
-            return Err(path_not_exist(&self.src_path));
+            return Err(path_not_exist(&input.src_path));
         }
 
-        self.built = true;
-        Ok(())
+        Ok(Self {
+            judge_type: JudgeType::COMMON,
+            testdata_configs,
+            program_config,
+            checker_config,
+        })
     }
+}
+
+fn copy_testdata_recursively(
+    src: &PathBuf,
+    dest: &PathBuf,
+) -> Result<Vec<TestdataConfig>, JudgeCoreError> {
+    log::debug!("copying {:?} to {:?}", src, dest);
+    let mut testdata_configs: Vec<TestdataConfig> = vec![];
+    if fs::metadata(src)?.is_file() {
+        if src.extension() == Some(std::ffi::OsStr::new("in")) {
+            log::info!("found testdata pair: {:?}", src);
+            let answer_path = src.with_extension("out");
+            if answer_path.exists() {
+                fs::copy(src, dest)?;
+                testdata_configs.push(TestdataConfig {
+                    input_file_path: src.clone(),
+                    answer_file_path: answer_path,
+                });
+            }
+        }
+    } else {
+        if !dest.exists() || !fs::metadata(dest)?.is_dir() {
+            log::debug!("creating dir: {:?}", dest);
+            fs::create_dir_all(dest)?;
+        }
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            let src_path = entry.path();
+            let file_name = src_path.file_name().unwrap();
+            let dest_path = dest.join(file_name);
+            testdata_configs.append(&mut copy_testdata_recursively(&src_path, &dest_path)?);
+        }
+    }
+
+    Ok(testdata_configs)
 }
 
 #[cfg(test)]
 pub mod builder {
-    use super::{JudgeBuilder, Language, PackageType};
+    use super::{JudgeBuilder, JudgeBuilderInput, Language, PackageType};
     use std::path::PathBuf;
 
     fn init() {
@@ -84,18 +134,13 @@ pub mod builder {
     #[test]
     fn test_build_icpc() {
         init();
-        let mut builder = JudgeBuilder::new(
-            PackageType::ICPC,
-            PathBuf::from("../test-collection/packages/icpc/hello_world"),
-            PathBuf::from("../tmp/icpc"),
-            Language::Cpp,
-            PathBuf::from("../test-collection/src/programs/infinite_loop.cpp"),
-        );
-        match builder.build() {
-            Ok(_) => {
-                log::info!("Build success");
-            }
-            Err(e) => panic!("{:?}", e),
-        }
+        let mut _builder = JudgeBuilder::new(JudgeBuilderInput {
+            package_type: PackageType::ICPC,
+            package_path: PathBuf::from("../test-collection/packages/icpc/hello_world"),
+            runtime_path: PathBuf::from("../tmp/icpc"),
+            src_language: Language::Cpp,
+            src_path: PathBuf::from("../test-collection/src/programs/infinite_loop.cpp"),
+        })
+        .unwrap();
     }
 }
