@@ -134,7 +134,7 @@ pub mod common_judge_tests {
         compiler::Language,
         judge::{
             result::JudgeVerdict, CheckerConfig, JudgeConfig, ProgramConfig, RuntimeConfig,
-            TestDataConfig,
+            TestdataConfig,
         },
         run::{executor::Executor, sandbox::RlimitConfigs},
     };
@@ -160,7 +160,7 @@ pub mod common_judge_tests {
             runtime: RuntimeConfig {
                 rlimit_configs: TEST_CONFIG,
             },
-            test_data: TestDataConfig {
+            test_data: TestdataConfig {
                 input_file_path: PathBuf::from("../tmp/in"),
                 answer_file_path: PathBuf::from("../tmp/ans"),
             },

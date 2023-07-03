@@ -25,14 +25,14 @@ pub struct ProgramConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct TestDataConfig {
+pub struct TestdataConfig {
     pub input_file_path: PathBuf,
     pub answer_file_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
 pub struct JudgeConfig {
-    pub test_data: TestDataConfig,
+    pub test_data: TestdataConfig,
     pub runtime: RuntimeConfig,
     pub program: ProgramConfig,
     pub checker: CheckerConfig,

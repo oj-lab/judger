@@ -1,26 +1,5 @@
 use anyhow::anyhow;
-use std::{fs, io, path::PathBuf};
-
-pub fn copy_recursively(src: &PathBuf, dest: &PathBuf) -> io::Result<()> {
-    log::debug!("copying {:?} to {:?}", src, dest);
-    if fs::metadata(src)?.is_file() {
-        fs::copy(src, dest)?;
-    } else {
-        if !dest.exists() || !fs::metadata(dest)?.is_dir() {
-            log::debug!("creating dir: {:?}", dest);
-            fs::create_dir_all(dest)?;
-        }
-        for entry in fs::read_dir(src)? {
-            let entry = entry?;
-            let src_path = entry.path();
-            let file_name = src_path.file_name().unwrap();
-            let dest_path = dest.join(file_name);
-            copy_recursively(&src_path, &dest_path)?;
-        }
-    }
-
-    Ok(())
-}
+use std::path::PathBuf;
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};
