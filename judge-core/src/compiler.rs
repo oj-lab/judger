@@ -69,6 +69,25 @@ impl FromStr for Language {
     }
 }
 
+/// Get specific compiler for a language, then compile source code into an executable
+/// 
+/// # Example
+/// 
+/// ```
+/// use judge_core::compiler::{Compiler, Language};
+/// use std::path::PathBuf;
+/// 
+/// let compiler = Compiler::new(Language::Cpp, vec!["-std=c++17".to_string()]);
+/// match compiler.compile(
+///     &PathBuf::from("../test-collection/src/programs/infinite_loop.cpp"),
+///     &PathBuf::from("../tmp/infinite_loop_test"),
+/// ) {
+///     Ok(out) => {
+///         log::info!("compiled with output: {}", out);
+///     }
+///     Err(e) => panic!("compile err: {:?}", e),
+/// }
+/// ```
 #[derive(Clone)]
 pub struct Compiler {
     language: Language,
