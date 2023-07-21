@@ -1,10 +1,12 @@
+use serde_yaml;
 use std::{fs, path::PathBuf};
 
 use crate::{
     compiler::{Compiler, Language},
     error::{path_not_exist, JudgeCoreError},
-    judge::{CheckerConfig, ProgramConfig, TestdataConfig},
+    judge::{CheckerConfig, ProgramConfig, RuntimeConfig, TestdataConfig},
     run::executor::Executor,
+    run::sandbox::RlimitConfigs,
 };
 
 pub enum PackageType {
@@ -21,6 +23,7 @@ pub struct JudgeBuilder {
     pub testdata_configs: Vec<TestdataConfig>,
     pub program_config: ProgramConfig,
     pub checker_config: CheckerConfig,
+    pub runtime_config: RuntimeConfig,
 }
 
 pub struct JudgeBuilderInput {
@@ -30,6 +33,14 @@ pub struct JudgeBuilderInput {
     pub src_language: Language,
     pub src_path: PathBuf,
 }
+
+const DEFAULT_RLIMIT_CONFIGS: RlimitConfigs = RlimitConfigs {
+    stack_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
+    as_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
+    cpu_limit: Some((1, 2)),
+    nproc_limit: Some((1, 1)),
+    fsize_limit: Some((1024, 1024)),
+};
 
 impl JudgeBuilder {
     pub fn new(input: JudgeBuilderInput) -> Result<Self, JudgeCoreError> {
@@ -56,34 +67,38 @@ impl JudgeBuilder {
             executor: None,
             output_file_path: input.runtime_path.join("checker.out"),
         };
-        let testdata_configs: Vec<TestdataConfig>;
         // copy testcases to runtime path
         let package_testcases_path = input.package_path.join("data");
         let runtime_testcases_path = input.runtime_path.join("data");
-        if package_testcases_path.exists() {
-            testdata_configs =
-                copy_testdata_recursively(&package_testcases_path, &runtime_testcases_path)?;
+        let testdata_configs = if package_testcases_path.exists() {
+            copy_testdata_recursively(&package_testcases_path, &runtime_testcases_path)?
         } else {
             return Err(path_not_exist(&package_testcases_path));
-        }
+        };
 
-        let program_config: ProgramConfig;
-        if input.src_path.exists() {
+        let program_config = if input.src_path.exists() {
             let compiler = Compiler::new(input.src_language, vec![]);
             compiler.compile(&input.src_path, &input.runtime_path.join("program"))?;
-            program_config = ProgramConfig {
+            ProgramConfig {
                 executor: Executor::new(input.src_language, input.runtime_path.join("program"))?,
                 output_file_path: input.runtime_path.join("program.out"),
-            };
+            }
         } else {
             return Err(path_not_exist(&input.src_path));
-        }
+        };
+
+        let rlimit_config = read_icpc_rlimit(&input.package_path)?;
+        log::info!("rlimit read {:?}", rlimit_config);
+        let runtime_config = RuntimeConfig {
+            rlimit_configs: rlimit_config,
+        };
 
         Ok(Self {
             judge_type: JudgeType::COMMON,
             testdata_configs,
             program_config,
             checker_config,
+            runtime_config,
         })
     }
 }
@@ -123,9 +138,50 @@ fn copy_testdata_recursively(
     Ok(testdata_configs)
 }
 
+fn read_icpc_rlimit(src: &PathBuf) -> Result<RlimitConfigs, JudgeCoreError> {
+    log::debug!("reading rlimit from {:?}", src);
+    let stack_limit = DEFAULT_RLIMIT_CONFIGS.stack_limit;
+    let mut as_limit = DEFAULT_RLIMIT_CONFIGS.as_limit;
+    let mut cpu_limit = DEFAULT_RLIMIT_CONFIGS.cpu_limit;
+    let nproc_limit = DEFAULT_RLIMIT_CONFIGS.nproc_limit;
+    let mut fsize_limit = DEFAULT_RLIMIT_CONFIGS.fsize_limit;
+    let time_limit_path = src.join(".timelimit");
+    if time_limit_path.exists() {
+        let content = fs::read_to_string(time_limit_path).unwrap();
+        let time_limit = content.trim().parse::<u64>().unwrap();
+        cpu_limit = Some((time_limit, time_limit));
+    } else {
+        log::info!("timelimit file not found, use default config");
+    }
+    let yaml_path = src.join("problem.yaml");
+    if yaml_path.exists() {
+        let content = fs::read_to_string(yaml_path).unwrap();
+        let problem_meta = serde_yaml::from_str::<serde_yaml::Value>(&content).unwrap();
+        if let Some(limits) = problem_meta.get("limits") {
+            if let Some(memory_limit) = limits.get("memory") {
+                if let Some(memory_u64) = memory_limit.as_u64() {
+                    as_limit = Some((memory_u64, memory_u64));
+                }
+            }
+            if let Some(output) = limits.get("output") {
+                if let Some(output_u64) = output.as_u64() {
+                    fsize_limit = Some((output_u64, output_u64));
+                }
+            }
+        }
+    }
+    Ok(RlimitConfigs {
+        stack_limit,
+        as_limit,
+        cpu_limit,
+        nproc_limit,
+        fsize_limit,
+    })
+}
+
 #[cfg(test)]
 pub mod builder {
-    use crate::{judge::{JudgeConfig, RuntimeConfig, common::run_judge}, run::sandbox::RlimitConfigs};
+    use crate::judge::{common::run_judge, JudgeConfig};
 
     use super::{JudgeBuilder, JudgeBuilderInput, Language, PackageType};
     use std::path::PathBuf;
@@ -135,14 +191,6 @@ pub mod builder {
             .filter_level(log::LevelFilter::Debug)
             .try_init();
     }
-
-    const TEST_CONFIG: RlimitConfigs = RlimitConfigs {
-        stack_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
-        as_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
-        cpu_limit: Some((1, 2)),
-        nproc_limit: Some((1, 1)),
-        fsize_limit: Some((1024, 1024)),
-    };
 
     #[test]
     fn test_build_icpc() {
@@ -155,22 +203,23 @@ pub mod builder {
             src_path: PathBuf::from("../test-collection/src/programs/read_and_write.cpp"),
         })
         .unwrap();
-        log::info!("builder has {} testdata configs", builder.testdata_configs.len());
+        log::info!(
+            "builder has {} testdata configs",
+            builder.testdata_configs.len()
+        );
         for idx in 0..builder.testdata_configs.len() {
             log::info!("runing testdata {}", idx);
             let judge_config = JudgeConfig {
                 test_data: builder.testdata_configs[idx].clone(),
                 program: builder.program_config.clone(),
                 checker: builder.checker_config.clone(),
-                runtime: RuntimeConfig {
-                    rlimit_configs: TEST_CONFIG,
-                }
+                runtime: builder.runtime_config.clone(),
             };
 
             let res = run_judge(&judge_config);
             match res {
                 Ok(info) => log::info!("{:?}", info),
-                Err(e) => panic!("{:?}", e)
+                Err(e) => panic!("{:?}", e),
             }
         }
     }
