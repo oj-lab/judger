@@ -67,28 +67,25 @@ impl JudgeBuilder {
             executor: None,
             output_file_path: input.runtime_path.join("checker.out"),
         };
-        let testdata_configs: Vec<TestdataConfig>;
         // copy testcases to runtime path
         let package_testcases_path = input.package_path.join("data");
         let runtime_testcases_path = input.runtime_path.join("data");
-        if package_testcases_path.exists() {
-            testdata_configs =
-                copy_testdata_recursively(&package_testcases_path, &runtime_testcases_path)?;
+        let testdata_configs = if package_testcases_path.exists() {
+            copy_testdata_recursively(&package_testcases_path, &runtime_testcases_path)?
         } else {
             return Err(path_not_exist(&package_testcases_path));
-        }
+        };
 
-        let program_config: ProgramConfig;
-        if input.src_path.exists() {
+        let program_config = if input.src_path.exists() {
             let compiler = Compiler::new(input.src_language, vec![]);
             compiler.compile(&input.src_path, &input.runtime_path.join("program"))?;
-            program_config = ProgramConfig {
+            ProgramConfig {
                 executor: Executor::new(input.src_language, input.runtime_path.join("program"))?,
                 output_file_path: input.runtime_path.join("program.out"),
-            };
+            }
         } else {
             return Err(path_not_exist(&input.src_path));
-        }
+        };
 
         let rlimit_config = read_icpc_rlimit(&input.package_path)?;
         log::info!("rlimit read {:?}", rlimit_config);
