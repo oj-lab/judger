@@ -18,9 +18,11 @@ jobs:
         with:
           submodules: recursive
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libseccomp-dev protobuf-compiler g++-11
-      - name: Setup g++-11
-        run: sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
+        run: sudo apt-get update && sudo apt-get install -y libseccomp-dev protobuf-compiler gcc-11 g++-11
+      - name: Setup gcc/g++ 11
+        run: |
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100 
+          && sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
       - name: Check ENV
         run: echo $(rustup --version && g++ -v)
       - name: Build test dist
