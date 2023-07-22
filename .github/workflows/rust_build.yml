@@ -22,7 +22,7 @@ jobs:
       - name: Setup gcc/g++ 11
         run: |
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100 
-          && sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
       - name: Check ENV
         run: echo $(rustup --version && g++ -v)
       - name: Build test dist
