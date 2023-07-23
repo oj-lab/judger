@@ -37,3 +37,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ## Contribute
 
 We have a guide in judger's [WIKI](https://github.com/OJ-lab/judger/wiki/Contribution-Guide)
+
+## Deeper Docs
+
+[judge-core README](judge-core/README.md)
+[judge-cli README](judge-cli/README.md)

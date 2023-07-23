@@ -169,7 +169,7 @@ impl From<rusage> for Rusage {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Serialize)]
 pub struct RlimitConfigs {
     pub stack_limit: Option<(u64, u64)>,
     pub as_limit: Option<(u64, u64)>,
