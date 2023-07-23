@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
 judge-core = { path = "../judge-core" }
+env_logger = "0.10.0"
+log = "0.4"

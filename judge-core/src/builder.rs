@@ -1,5 +1,6 @@
+use serde_derive::Serialize;
 use serde_yaml;
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, str::FromStr};
 
 use crate::{
     compiler::{Compiler, Language},
@@ -9,15 +10,29 @@ use crate::{
     run::sandbox::RlimitConfigs,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum PackageType {
     ICPC,
 }
 
+impl FromStr for PackageType {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "icpc" => Ok(Self::ICPC),
+            _ => Err(anyhow::anyhow!("PackageType not found: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub enum JudgeType {
     COMMON,
     INTERACT,
 }
 
+#[derive(Debug, Clone, Serialize)]
 pub struct JudgeBuilder {
     pub judge_type: JudgeType,
     pub testdata_configs: Vec<TestdataConfig>,
@@ -160,7 +175,9 @@ fn read_icpc_rlimit(src: &PathBuf) -> Result<RlimitConfigs, JudgeCoreError> {
         if let Some(limits) = problem_meta.get("limits") {
             if let Some(memory_limit) = limits.get("memory") {
                 if let Some(memory_u64) = memory_limit.as_u64() {
-                    as_limit = Some((memory_u64, memory_u64));
+                    // the unit of as_limit is byte
+                    // TODO: we need some comment for developer to know this
+                    as_limit = Some((memory_u64 * 1024 * 1024, memory_u64 * 1024 * 1024));
                 }
             }
             if let Some(output) = limits.get("output") {
@@ -203,10 +220,7 @@ pub mod builder {
             src_path: PathBuf::from("../test-collection/src/programs/read_and_write.cpp"),
         })
         .unwrap();
-        log::info!(
-            "builder has {} testdata configs",
-            builder.testdata_configs.len()
-        );
+        log::info!("builder: {:?}", builder);
         for idx in 0..builder.testdata_configs.len() {
             log::info!("runing testdata {}", idx);
             let judge_config = JudgeConfig {

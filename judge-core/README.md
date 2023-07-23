@@ -13,3 +13,13 @@ See what we've got (or plan to do) currently:
 enables you to run single part of judge test_case (if you got everything needed for judge)
 - a **judge_builder** (WIP) to provide a higher level interface to start a judge,
 supposing the judge directory structure is following [ICPC Problem Package format](https://icpc.io/problem-package-format/examples/directory_structure)
+
+## Use strace for seccomp withlist dev
+
+Currently we are using a very normal approach by just running the following command:
+
+``` shell
+strace ./tmp/icpc/program
+```
+
+It will be better if we have a strace runned executor.
