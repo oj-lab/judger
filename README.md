@@ -40,5 +40,5 @@ We have a guide in judger's [WIKI](https://github.com/OJ-lab/judger/wiki/Contrib
 
 ## Deeper Docs
 
-[judge-core README](judge-core/README.md)
-[judge-cli README](judge-cli/README.md)
+- [judge-core README](judge-core/README.md)
+- [judge-cli README](judge-cli/README.md)
