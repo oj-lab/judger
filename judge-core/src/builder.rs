@@ -1,4 +1,4 @@
-use serde_derive::Serialize;
+use serde_derive::{Serialize, Deserialize};
 use serde_yaml;
 use std::{fs, path::PathBuf, str::FromStr};
 
@@ -10,7 +10,7 @@ use crate::{
     run::sandbox::RlimitConfigs,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PackageType {
     ICPC,
 }
