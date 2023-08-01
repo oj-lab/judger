@@ -1,2 +1,2 @@
 [workspace]
-members = ["judge-core", "judge-server", "judge-cli"]
+members = ["judge-core", "judge-service", "judge-server", "judge-cli"]
