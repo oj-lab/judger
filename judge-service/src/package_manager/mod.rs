@@ -4,8 +4,11 @@ use std::path::PathBuf;
 
 use judge_core::error::JudgeCoreError;
 
+use self::discription::StoragedPackageDiscriptionMap;
+
 pub struct PackageManager {
    pub folder_path: PathBuf,
+   pub package_discription_map: StoragedPackageDiscriptionMap,
 }
 
 impl PackageManager {
@@ -25,6 +28,8 @@ impl PackageManager {
             )));
         }
 
-        Ok(Self { folder_path })
+        let package_discription_map = StoragedPackageDiscriptionMap::init(folder_path.clone())?;
+
+        Ok(Self { folder_path, package_discription_map })
     }
 }
