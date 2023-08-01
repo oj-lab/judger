@@ -1,4 +1,4 @@
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 use serde_yaml;
 use std::{fs, path::PathBuf, str::FromStr};
 

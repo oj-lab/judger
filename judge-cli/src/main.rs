@@ -1,7 +1,11 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use judge_core::{compiler::{Compiler, Language}, builder::{PackageType, JudgeBuilder, JudgeBuilderInput}, judge::{JudgeConfig, common::run_judge}};
+use judge_core::{
+    builder::{JudgeBuilder, JudgeBuilderInput, PackageType},
+    compiler::{Compiler, Language},
+    judge::{common::run_judge, JudgeConfig},
+};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -65,17 +69,20 @@ fn main() {
             source_language,
             package,
             package_type,
-            runtime_path,    
+            runtime_path,
         }) => {
             let new_builder_result = JudgeBuilder::new(JudgeBuilderInput {
-                package_type: package_type,
+                package_type,
                 package_path: package,
-                runtime_path: runtime_path,
+                runtime_path,
                 src_language: source_language,
                 src_path: source,
             });
             if new_builder_result.is_err() {
-                println!("Failed to new builder result: {:?}", new_builder_result.err());
+                println!(
+                    "Failed to new builder result: {:?}",
+                    new_builder_result.err()
+                );
                 return;
             }
             let builder = new_builder_result.unwrap();

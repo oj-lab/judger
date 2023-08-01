@@ -7,8 +7,8 @@ use judge_core::error::JudgeCoreError;
 use self::discription::StoragedPackageDiscriptionMap;
 
 pub struct PackageManager {
-   pub folder_path: PathBuf,
-   pub package_discription_map: StoragedPackageDiscriptionMap,
+    pub folder_path: PathBuf,
+    pub package_discription_map: StoragedPackageDiscriptionMap,
 }
 
 impl PackageManager {
@@ -30,6 +30,9 @@ impl PackageManager {
 
         let package_discription_map = StoragedPackageDiscriptionMap::init(folder_path.clone())?;
 
-        Ok(Self { folder_path, package_discription_map })
+        Ok(Self {
+            folder_path,
+            package_discription_map,
+        })
     }
 }
