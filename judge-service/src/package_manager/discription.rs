@@ -3,6 +3,8 @@ use std::{collections::HashMap, fs, path::{PathBuf, Path}};
 use judge_core::{builder::PackageType, error::JudgeCoreError};
 use serde_derive::{Deserialize, Serialize};
 
+use crate::error::JudgeServiceError;
+
 pub const PACKAGES_DISCRIPTION_FILE_NAME: &str = "judge-pd.json";
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -18,7 +20,7 @@ pub struct StoragedPackageDiscriptionMap {
 }
 
 impl StoragedPackageDiscriptionMap {
-    pub fn init(folder_path: PathBuf) -> Result<Self, JudgeCoreError> {
+    pub fn init(folder_path: PathBuf) -> Result<Self, JudgeServiceError> {
         init_package_discription_file(&folder_path)?;
         let package_discription_map = HashMap::new();
         Ok(Self {
@@ -27,7 +29,7 @@ impl StoragedPackageDiscriptionMap {
         })
     }
 
-    pub fn load(folder_path: PathBuf) -> Result<Self, JudgeCoreError> {
+    pub fn load(folder_path: PathBuf) -> Result<Self, JudgeServiceError> {
         let package_discription_map = load_package_discription_map(&folder_path)?;
         Ok(Self {
             folder_path,

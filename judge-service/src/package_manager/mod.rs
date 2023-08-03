@@ -2,7 +2,7 @@ pub mod discription;
 
 use std::path::PathBuf;
 
-use judge_core::error::JudgeCoreError;
+use crate::error::JudgeServiceError;
 
 use self::discription::StoragedPackageDiscriptionMap;
 
@@ -12,9 +12,9 @@ pub struct PackageManager {
 }
 
 impl PackageManager {
-    pub fn new(folder_path: PathBuf) -> Result<Self, JudgeCoreError> {
+    pub fn new(folder_path: PathBuf) -> Result<Self, JudgeServiceError> {
         if folder_path.exists() && folder_path.is_file() {
-            return Err(JudgeCoreError::AnyhowError(anyhow::anyhow!(
+            return Err(JudgeServiceError::AnyhowError(anyhow::anyhow!(
                 "Package folder '{}' appears to be a file.",
                 folder_path.display()
             )));
@@ -26,7 +26,7 @@ impl PackageManager {
 
         let discription_file_path = folder_path.join(discription::PACKAGES_DISCRIPTION_FILE_NAME);
         if discription_file_path.exists() && discription_file_path.is_dir() {
-            return Err(JudgeCoreError::AnyhowError(anyhow::anyhow!(
+            return Err(JudgeServiceError::AnyhowError(anyhow::anyhow!(
                 "Discription file '{}' appears to be a folder.",
                 folder_path.display()
             )));
