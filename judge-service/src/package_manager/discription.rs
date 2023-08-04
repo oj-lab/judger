@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fs, path::{PathBuf, Path}};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use judge_core::{builder::PackageType, error::JudgeCoreError};
 use serde_derive::{Deserialize, Serialize};
@@ -12,6 +16,16 @@ pub struct PackageDiscription {
     pub name: String,
     pub revision: u32,
     pub package_type: PackageType,
+}
+
+impl PackageDiscription {
+    pub fn new(name: String, package_type: PackageType) -> Result<Self, JudgeServiceError> {
+        Ok(Self {
+            name,
+            revision: 0,
+            package_type,
+        })
+    }
 }
 
 pub struct StoragedPackageDiscriptionMap {
@@ -45,6 +59,10 @@ impl StoragedPackageDiscriptionMap {
             .insert(package_discription.name.clone(), package_discription);
         update_package_discription_file(&self.folder_path, &self.package_discription_map)?;
         Ok(())
+    }
+
+    pub fn get(&self, package_name: &str) -> Option<&PackageDiscription> {
+        self.package_discription_map.get(package_name)
     }
 }
 

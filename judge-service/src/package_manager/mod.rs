@@ -2,6 +2,8 @@ pub mod discription;
 
 use std::path::PathBuf;
 
+use judge_core::builder::PackageType;
+
 use crate::error::JudgeServiceError;
 
 use self::discription::StoragedPackageDiscriptionMap;
@@ -31,16 +33,42 @@ impl PackageManager {
                 folder_path.display()
             )));
         }
-        let package_discription_map;
-        if !discription_file_path.exists() {
-            package_discription_map = StoragedPackageDiscriptionMap::init(folder_path.clone())?;
+        let package_discription_map = if !discription_file_path.exists() {
+            StoragedPackageDiscriptionMap::init(folder_path.clone())?
         } else {
-            package_discription_map = StoragedPackageDiscriptionMap::load(folder_path.clone())?;
-        }
+            StoragedPackageDiscriptionMap::load(folder_path.clone())?
+        };
 
         Ok(Self {
             folder_path,
             package_discription_map,
         })
+    }
+
+    pub fn import_package(
+        &mut self,
+        package_name: String,
+        package_type: PackageType,
+    ) -> Result<(), JudgeServiceError> {
+        let package_discription = self.package_discription_map.get(&package_name);
+        if package_discription.is_some() {
+            return Err(JudgeServiceError::AnyhowError(anyhow::anyhow!(
+                "Package '{}' already exists.",
+                package_name
+            )));
+        }
+
+        if package_type.validate(self.folder_path.join(&package_name)) {
+            let package_discription =
+                discription::PackageDiscription::new(package_name, package_type)?;
+            self.package_discription_map.insert(package_discription)?;
+        } else {
+            return Err(JudgeServiceError::AnyhowError(anyhow::anyhow!(
+                "Package '{}' is not valid.",
+                package_name
+            )));
+        }
+
+        Ok(())
     }
 }

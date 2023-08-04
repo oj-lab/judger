@@ -15,6 +15,20 @@ pub enum PackageType {
     ICPC,
 }
 
+impl PackageType {
+    pub fn validate(&self, package_path: PathBuf) -> bool {
+        match self {
+            Self::ICPC => {
+                if !package_path.exists() {
+                    return false;
+                }
+                // TODO: validate package
+                true
+            }
+        }
+    }
+}
+
 impl FromStr for PackageType {
     type Err = anyhow::Error;
 
