@@ -2,9 +2,10 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use judge_core::{
-    builder::{JudgeBuilder, JudgeBuilderInput, PackageType},
     compiler::{Compiler, Language},
+    judge::builder::{JudgeBuilder, JudgeBuilderInput},
     judge::{common::run_judge, JudgeConfig},
+    package::PackageType,
 };
 
 #[derive(Parser)]

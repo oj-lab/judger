@@ -4,6 +4,7 @@ use serde_derive::Serialize;
 
 use crate::run::{executor::Executor, sandbox::RlimitConfigs};
 
+pub mod builder;
 pub mod common;
 pub mod interact;
 pub mod result;

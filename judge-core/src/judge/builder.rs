@@ -1,44 +1,15 @@
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::Serialize;
 use serde_yaml;
-use std::{fs, path::PathBuf, str::FromStr};
+use std::{fs, path::PathBuf};
 
 use crate::{
     compiler::{Compiler, Language},
     error::{path_not_exist, JudgeCoreError},
     judge::{CheckerConfig, ProgramConfig, RuntimeConfig, TestdataConfig},
+    package::PackageType,
     run::executor::Executor,
     run::sandbox::RlimitConfigs,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PackageType {
-    ICPC,
-}
-
-impl PackageType {
-    pub fn validate(&self, package_path: PathBuf) -> bool {
-        match self {
-            Self::ICPC => {
-                if !package_path.exists() {
-                    return false;
-                }
-                // TODO: validate package
-                true
-            }
-        }
-    }
-}
-
-impl FromStr for PackageType {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "icpc" => Ok(Self::ICPC),
-            _ => Err(anyhow::anyhow!("PackageType not found: {}", s)),
-        }
-    }
-}
 
 #[derive(Debug, Clone, Serialize)]
 pub enum JudgeType {

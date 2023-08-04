@@ -2,7 +2,7 @@ pub mod discription;
 
 use std::path::PathBuf;
 
-use judge_core::builder::PackageType;
+use judge_core::package::PackageType;
 
 use crate::error::JudgeServiceError;
 
@@ -58,7 +58,10 @@ impl PackageManager {
             )));
         }
 
-        if package_type.validate(self.folder_path.join(&package_name)) {
+        if package_type
+            .get_package_agent()
+            .validate(self.folder_path.join(&package_name))
+        {
             let package_discription =
                 discription::PackageDiscription::new(package_name, package_type)?;
             self.package_discription_map.insert(package_discription)?;

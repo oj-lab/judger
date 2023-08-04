@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use judge_core::{builder::PackageType, error::JudgeCoreError};
+use judge_core::{error::JudgeCoreError, package::PackageType};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::error::JudgeServiceError;
@@ -101,10 +101,11 @@ fn update_package_discription_file(
 
 #[cfg(test)]
 pub mod package_discription_test {
+    use judge_core::package::PackageType;
+
     #[test]
     fn test_storaged_package_discription_map() {
         use super::StoragedPackageDiscriptionMap;
-        use judge_core::builder::PackageType;
         use std::path::PathBuf;
 
         let folder = PathBuf::from("../tmp");
