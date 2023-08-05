@@ -3,7 +3,8 @@ use crate::judge::common::run_checker;
 use crate::judge::result::{check_user_result, JudgeVerdict};
 use crate::run::executor::Executor;
 use crate::run::process_listener::{ProcessExitMessage, ProcessListener};
-use crate::run::sandbox::{RawRunResultInfo, Sandbox, SCRIPT_LIMIT_CONFIG};
+use crate::run::sandbox::{RawRunResultInfo, Sandbox};
+use crate::run::SCRIPT_LIMIT_CONFIG;
 use crate::utils::get_pathbuf_str;
 
 use nix::errno::Errno;
@@ -151,7 +152,7 @@ pub fn run_interact(
     interactor_executor.set_additional_args(interact_args);
     let mut interact_sandbox = Sandbox::new(
         interactor_executor,
-        SCRIPT_LIMIT_CONFIG,
+        SCRIPT_LIMIT_CONFIG.clone(),
         Some(interactor_read_proxy),
         Some(interactor_write_proxy),
         false,
@@ -245,7 +246,7 @@ pub mod interact_judge_test {
             result::JudgeVerdict, CheckerConfig, JudgeConfig, ProgramConfig, RuntimeConfig,
             TestdataConfig,
         },
-        run::{executor::Executor, sandbox::RlimitConfigs},
+        run::{executor::Executor, RlimitConfigs},
     };
 
     use super::run_interact;

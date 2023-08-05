@@ -4,7 +4,19 @@ use std::{path::PathBuf, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
+use crate::{error::JudgeCoreError, judge::{TestdataConfig, CheckerConfig}, run::RlimitConfigs};
+
 use self::icpc::ICPCPackageAgent;
+
+pub trait PackageAgent {
+    fn init(package_path: PathBuf) -> Result<Self, JudgeCoreError>
+    where
+        Self: Sized;
+    fn validate(&self) -> bool;
+    fn get_rlimit_configs(&self) -> Result<RlimitConfigs, JudgeCoreError>;
+    fn load_testdata(&self, dest: PathBuf) -> Result<Vec<TestdataConfig>, JudgeCoreError>;
+    fn load_checker(&self, dest: PathBuf) -> Result<CheckerConfig, JudgeCoreError>;
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PackageType {
@@ -23,13 +35,12 @@ impl FromStr for PackageType {
 }
 
 impl PackageType {
-    pub fn get_package_agent(&self) -> Box<dyn PackageAgent> {
+    pub fn get_package_agent(
+        &self,
+        package_path: PathBuf,
+    ) -> Result<Box<dyn PackageAgent>, JudgeCoreError> {
         match self {
-            Self::ICPC => Box::new(ICPCPackageAgent),
+            Self::ICPC => Ok(Box::new(ICPCPackageAgent::init(package_path)?)),
         }
     }
-}
-
-pub trait PackageAgent {
-    fn validate(&self, package_path: PathBuf) -> bool;
 }

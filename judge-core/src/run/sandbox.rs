@@ -1,21 +1,16 @@
 use crate::error::JudgeCoreError;
 use libc::{c_int, rusage, wait4, WEXITSTATUS, WSTOPPED, WTERMSIG};
 use libseccomp::{ScmpAction, ScmpFilterContext, ScmpSyscall};
+use nix::unistd::close;
 use nix::unistd::dup2;
 use nix::unistd::{fork, ForkResult};
-use nix::{
-    sys::resource::{
-        setrlimit,
-        Resource::{RLIMIT_AS, RLIMIT_CPU, RLIMIT_STACK},
-    },
-    unistd::close,
-};
 use serde_derive::{Deserialize, Serialize};
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::time::{Duration, Instant};
 
 use super::executor::Executor;
+use super::RlimitConfigs;
 
 pub struct Sandbox {
     executor: Executor,
@@ -168,41 +163,6 @@ impl From<rusage> for Rusage {
         }
     }
 }
-
-#[derive(Default, Debug, Clone, Serialize)]
-pub struct RlimitConfigs {
-    pub stack_limit: Option<(u64, u64)>,
-    pub as_limit: Option<(u64, u64)>,
-    pub cpu_limit: Option<(u64, u64)>,
-    pub nproc_limit: Option<(u64, u64)>,
-    pub fsize_limit: Option<(u64, u64)>,
-}
-
-impl RlimitConfigs {
-    pub fn load(&self) -> Result<(), JudgeCoreError> {
-        if let Some(stack_limit) = self.stack_limit {
-            log::debug!("Set stack limit: {:?}", stack_limit);
-            setrlimit(RLIMIT_STACK, stack_limit.0, stack_limit.1)?;
-        }
-        if let Some(as_limit) = self.as_limit {
-            log::debug!("Set as limit: {:?}", as_limit);
-            setrlimit(RLIMIT_AS, as_limit.0, as_limit.1)?;
-        }
-        if let Some(cpu_limit) = self.cpu_limit {
-            log::debug!("Set cpu limit: {:?}", cpu_limit);
-            setrlimit(RLIMIT_CPU, cpu_limit.0, cpu_limit.1)?;
-        }
-        Ok(())
-    }
-}
-
-pub const SCRIPT_LIMIT_CONFIG: RlimitConfigs = RlimitConfigs {
-    stack_limit: Some((16 * 1024 * 1024, 16 * 1024 * 1024)),
-    as_limit: Some((1024 * 1024 * 1024, 1024 * 1024 * 1024)),
-    cpu_limit: Some((60, 90)),
-    nproc_limit: Some((1, 1)),
-    fsize_limit: Some((1024, 1024)),
-};
 
 fn get_default_rusage() -> rusage {
     rusage {

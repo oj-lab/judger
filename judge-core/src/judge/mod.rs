@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde_derive::Serialize;
 
-use crate::run::{executor::Executor, sandbox::RlimitConfigs};
+use crate::run::{executor::Executor, RlimitConfigs};
 
 pub mod builder;
 pub mod common;

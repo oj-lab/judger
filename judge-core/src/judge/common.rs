@@ -1,7 +1,7 @@
 use crate::judge::result::{
     check_checker_result, check_user_result, get_max_mem, get_run_time, JudgeResultInfo,
 };
-use crate::run::sandbox::SCRIPT_LIMIT_CONFIG;
+use crate::run::SCRIPT_LIMIT_CONFIG;
 use crate::utils::{compare_files, get_pathbuf_str};
 use crate::{error::JudgeCoreError, run::sandbox::Sandbox};
 
@@ -64,8 +64,13 @@ pub fn run_checker(config: &JudgeConfig) -> Result<(JudgeVerdict, i32), JudgeCor
         ];
         checker_executor.set_additional_args(checker_args);
 
-        let mut checker_process =
-            Sandbox::new(checker_executor, SCRIPT_LIMIT_CONFIG, None, None, false)?;
+        let mut checker_process = Sandbox::new(
+            checker_executor,
+            SCRIPT_LIMIT_CONFIG.clone(),
+            None,
+            None,
+            false,
+        )?;
 
         log::debug!("Spawning checker process");
         let _checker_spawn = checker_process.spawn()?;
@@ -136,7 +141,7 @@ pub mod common_judge_tests {
             result::JudgeVerdict, CheckerConfig, JudgeConfig, ProgramConfig, RuntimeConfig,
             TestdataConfig,
         },
-        run::{executor::Executor, sandbox::RlimitConfigs},
+        run::{executor::Executor, RlimitConfigs},
     };
 
     use super::run_judge;

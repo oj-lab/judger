@@ -59,8 +59,8 @@ impl PackageManager {
         }
 
         if package_type
-            .get_package_agent()
-            .validate(self.folder_path.join(&package_name))
+            .get_package_agent(self.folder_path.join(&package_name))?
+            .validate()
         {
             let package_discription =
                 discription::PackageDiscription::new(package_name, package_type)?;
