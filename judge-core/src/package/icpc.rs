@@ -22,8 +22,16 @@ impl PackageAgent for ICPCPackageAgent {
         Ok(Self { package_path })
     }
 
-    // TODO: implement this
     fn validate(&self) -> bool {
+        if !self.package_path.join("problem.yaml").exists()
+            || !self.package_path.join("problem.yaml").is_file()
+        {
+            return false;
+        }
+        if !self.package_path.join("data").exists() || !self.package_path.join("data").is_dir() {
+            return false;
+        }
+
         true
     }
 
