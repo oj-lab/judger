@@ -4,7 +4,11 @@ use std::{path::PathBuf, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{error::JudgeCoreError, judge::{TestdataConfig, CheckerConfig}, run::RlimitConfigs};
+use crate::{
+    error::JudgeCoreError,
+    judge::{CheckerConfig, TestdataConfig},
+    run::RlimitConfigs,
+};
 
 use self::icpc::ICPCPackageAgent;
 
