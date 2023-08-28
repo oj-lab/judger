@@ -14,11 +14,11 @@ pub fn route(cfg: &mut web::ServiceConfig) {
 #[derive(Debug, ToSchema, Deserialize)]
 pub struct RunJudgeBody {
     _src: String,
-    _test_case_id: String,
+    _package_slug: String,
 }
 
 #[utoipa::path(
-    context_path = "/api/judge",
+    context_path = "/api/v1/judge",
     request_body(content = RunJudgeBody, content_type = "application/json", description = "The info a judge task should refer to"),
     responses(
         (status = 200, description = "Judge run successfully")
