@@ -45,6 +45,16 @@ pub enum Language {
     // add other supported languages here
 }
 
+impl Language {
+    pub fn get_extension(&self) -> String {
+        match self {
+            Self::Rust => "rs".to_string(),
+            Self::Cpp => "cpp".to_string(),
+            Self::Python => "py".to_string(),
+        }
+    }
+}
+
 impl fmt::Display for Language {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

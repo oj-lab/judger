@@ -7,17 +7,14 @@ use std::io::{BufRead, BufReader};
 use crate::error::JudgeCoreError;
 
 pub fn compare_files(file_path1: &PathBuf, file_path2: &PathBuf) -> bool {
+    log::debug!("Comparing output files");
     let file1 = BufReader::new(File::open(file_path1).unwrap());
     let file2 = BufReader::new(File::open(file_path2).unwrap());
 
-    file1.lines().zip(file2.lines()).all(|(line1, line2)| {
-        // Ignore any trailing whitespace or newline characters
-        let line1_string = line1.unwrap();
-        let line2_string: String = line2.unwrap();
-        let trimed1 = line1_string.trim_end();
-        let trimed2 = line2_string.trim_end();
-        trimed1 == trimed2
-    })
+    let file1_content: String = file1.lines().map(|l| l.unwrap()).collect();
+    let file2_content: String = file2.lines().map(|l| l.unwrap()).collect();
+
+    file1_content.trim_end() == file2_content.trim_end()
 }
 
 pub fn get_pathbuf_str(path: &PathBuf) -> Result<String, JudgeCoreError> {
