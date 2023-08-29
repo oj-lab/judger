@@ -9,6 +9,9 @@ pub struct JudgeServerOpt {
     /// Port to listen to
     #[structopt(env = "PORT", default_value = "8000")]
     pub port: u16,
+
+    #[structopt(long, default_value = "dev-problem-package")]
+    pub problem_package_dir: String,
 }
 
 pub fn load_option() -> JudgeServerOpt {
