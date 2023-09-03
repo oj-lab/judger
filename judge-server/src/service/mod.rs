@@ -13,9 +13,10 @@ pub struct ApiDoc;
 
 pub fn route(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/api")
+        web::scope("/api/v1")
             .configure(judge::route)
-            .service(greet::greet),
+            .service(greet::greet)
+            .service(judge::run_judge),
     )
     .service(
         utoipa_swagger_ui::SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![

@@ -1,6 +1,3 @@
 {
-    "recommendations": [
-        "swellaby.rust-pack",
-        "lizebang.bash-extension-pack"
-    ]
+  "recommendations": ["swellaby.rust-pack", "lizebang.bash-extension-pack", "pkief.material-icon-theme"]
 }

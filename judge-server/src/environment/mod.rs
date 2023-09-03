@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug, Clone)]
@@ -9,6 +11,9 @@ pub struct JudgeServerOpt {
     /// Port to listen to
     #[structopt(env = "PORT", default_value = "8000")]
     pub port: u16,
+
+    #[structopt(long, default_value = "dev-problem-package")]
+    pub problem_package_dir: PathBuf,
 }
 
 pub fn load_option() -> JudgeServerOpt {
@@ -27,5 +32,5 @@ pub fn load_option() -> JudgeServerOpt {
 }
 
 pub fn setup_logger() {
-    env_logger::init()
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
 }

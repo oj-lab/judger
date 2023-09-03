@@ -87,47 +87,47 @@ pub fn run_checker(config: &JudgeConfig) -> Result<(JudgeVerdict, i32), JudgeCor
     }
 }
 
-pub fn run_judge(config: &JudgeConfig) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
+pub fn run_judge(config: &JudgeConfig) -> Result<JudgeResultInfo, JudgeCoreError> {
     let (user_verdict, user_time, max_mem, user_exit_status) = run_user(config)?;
     if let Some(verdict) = user_verdict {
-        return Ok(Some(JudgeResultInfo {
+        return Ok(JudgeResultInfo {
             verdict,
             time_usage: user_time,
             memory_usage_bytes: max_mem,
             exit_status: user_exit_status,
             checker_exit_status: 0,
-        }));
+        });
     }
 
     log::debug!("Creating sandbox for checker process");
     if let Some(_checker_executor) = config.checker.executor.clone() {
         let (verdict, checker_exit_status) = run_checker(config)?;
-        Ok(Some(JudgeResultInfo {
+        Ok(JudgeResultInfo {
             verdict,
             time_usage: user_time,
             memory_usage_bytes: max_mem,
             exit_status: user_exit_status,
             checker_exit_status,
-        }))
+        })
     } else if compare_files(
         &PathBuf::from(&config.program.output_file_path),
         &PathBuf::from(&config.test_data.answer_file_path),
     ) {
-        Ok(Some(JudgeResultInfo {
+        Ok(JudgeResultInfo {
             verdict: JudgeVerdict::Accepted,
             time_usage: user_time,
             memory_usage_bytes: max_mem,
             exit_status: user_exit_status,
             checker_exit_status: 0,
-        }))
+        })
     } else {
-        Ok(Some(JudgeResultInfo {
+        Ok(JudgeResultInfo {
             verdict: JudgeVerdict::WrongAnswer,
             time_usage: user_time,
             memory_usage_bytes: max_mem,
             exit_status: user_exit_status,
             checker_exit_status: 0,
-        }))
+        })
     }
 }
 
@@ -188,7 +188,7 @@ pub mod common_judge_tests {
 
         let runner_config = build_test_config(program_executor);
         let result = run_judge(&runner_config);
-        if let Ok(Some(result)) = result {
+        if let Ok(result) = result {
             log::debug!("{:?}", result);
             assert_eq!(result.verdict, JudgeVerdict::Accepted);
         } else {
@@ -206,7 +206,7 @@ pub mod common_judge_tests {
         let runner_config = build_test_config(program_executor);
         let result = run_judge(&runner_config);
         assert!(result.is_ok());
-        if let Ok(Some(result)) = result {
+        if let Ok(result) = result {
             log::debug!("{:?}", result);
             assert_eq!(result.verdict, JudgeVerdict::TimeLimitExceeded);
         }
@@ -221,7 +221,7 @@ pub mod common_judge_tests {
         let runner_config = build_test_config(program_executor);
         let result = run_judge(&runner_config);
         assert!(result.is_ok());
-        if let Ok(Some(result)) = result {
+        if let Ok(result) = result {
             log::debug!("{:?}", result);
             assert_eq!(result.verdict, JudgeVerdict::RuntimeError);
         }

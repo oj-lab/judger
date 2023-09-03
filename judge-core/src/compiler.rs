@@ -1,7 +1,7 @@
 use crate::error::JudgeCoreError;
 use crate::utils::get_pathbuf_str;
 use anyhow::anyhow;
-use serde_derive::Serialize;
+use serde_derive::{Serialize, Deserialize};
 use std::fmt;
 use std::path::PathBuf;
 use std::{process::Command, str::FromStr};
@@ -37,12 +37,22 @@ impl CommandBuilder {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Copy, Serialize)]
+#[derive(Debug, Clone, PartialEq, Copy, Serialize, Deserialize)]
 pub enum Language {
     Rust,
     Cpp,
     Python,
     // add other supported languages here
+}
+
+impl Language {
+    pub fn get_extension(&self) -> String {
+        match self {
+            Self::Rust => "rs".to_string(),
+            Self::Cpp => "cpp".to_string(),
+            Self::Python => "py".to_string(),
+        }
+    }
 }
 
 impl fmt::Display for Language {

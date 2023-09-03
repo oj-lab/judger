@@ -1,7 +1,9 @@
+use serde_derive::Serialize;
+
 use crate::run::sandbox::RawRunResultInfo;
 use std::{fmt, ops::Add, time::Duration};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct JudgeResultInfo {
     pub verdict: JudgeVerdict,
     pub time_usage: Duration,
@@ -10,7 +12,7 @@ pub struct JudgeResultInfo {
     pub checker_exit_status: i32,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub enum JudgeVerdict {
     Accepted,
     WrongAnswer,

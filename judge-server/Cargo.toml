@@ -35,4 +35,6 @@ chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1"
 thiserror = "1"
 
+uuid = { version = "1.4", features = ["serde", "v4"] }
+
 judge-core = { path = "../judge-core" }

@@ -1,0 +1,9 @@
+{
+  "material-icon-theme.folders.associations": {
+    "judge-core": "core",
+    "judge-cli": "command",
+    "judge-service": "helper",
+    "judge-server": "server",
+    "postman": "api"
+  }
+}

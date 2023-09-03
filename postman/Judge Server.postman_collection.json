@@ -1,0 +1,39 @@
+{
+	"info": {
+		"_postman_id": "97809aca-56f3-4402-9d73-24c841f5c664",
+		"name": "Judge Server",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "12985580"
+	},
+	"item": [
+		{
+			"name": "localhost:8000/api/v1/judge/hello-world",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"src\": \"#include <iostream>\\n\\nusing namespace std;\\n\\nint main() {\\n    string s;\\n    cin >> s;\\n    cout << \\\"Hello! \\\" << s << endl;\\n}\\n\",\r\n    \"src_language\": \"Cpp\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{Judger Host}}/api/v1/judge/hello-world",
+					"host": [
+						"{{Judger Host}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"judge",
+						"hello-world"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
