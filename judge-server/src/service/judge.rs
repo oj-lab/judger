@@ -29,8 +29,7 @@ pub fn route(cfg: &mut web::ServiceConfig) {
 #[derive(Debug, ToSchema, Deserialize)]
 pub struct RunJudgeBody {
     src: String,
-    src_language: Language,
-    package_slug: PathBuf,
+    src_language: Language
 }
 
 #[utoipa::path(
@@ -40,11 +39,13 @@ pub struct RunJudgeBody {
         (status = 200, description = "Judge run successfully")
     )
 )]
-#[post("")]
+#[post("/{package_slug}")]
 pub async fn run_judge(
+    path: web::Path<String>,
     body: web::Json<RunJudgeBody>,
     problem_package_dir: web::Data<PathBuf>,
 ) -> Result<HttpResponse, ServiceError> {
+    let package_slug = path.into_inner();
     log::debug!("receive body: {:?}", body);
 
     let uuid = uuid::Uuid::new_v4();
@@ -66,7 +67,7 @@ pub async fn run_judge(
         tokio::spawn(async move {
             let new_builder_result = JudgeBuilder::new(JudgeBuilderInput {
                 package_type: PackageType::ICPC,
-                package_path: problem_package_dir.join(body.package_slug.clone()),
+                package_path: problem_package_dir.join(package_slug.clone()),
                 runtime_path: runtime_path.clone(),
                 src_language: body.src_language,
                 src_path: runtime_path.clone().join(&src_file_name),
