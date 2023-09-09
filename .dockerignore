@@ -1,0 +1,7 @@
+.vscode/
+tmp/
+test-collection/
+target/
+rclone/
+postman/
+docker/
