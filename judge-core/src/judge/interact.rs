@@ -10,10 +10,11 @@ use crate::utils::get_pathbuf_str;
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::sys::epoll::{
-    epoll_create1, epoll_ctl, epoll_wait, EpollCreateFlags, EpollEvent, EpollFlags, EpollOp,
+    Epoll, EpollCreateFlags, EpollEvent, EpollFlags,
 };
 use nix::unistd::{pipe, read, write};
 use std::fs::File;
+use std::os::fd::BorrowedFd;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -84,15 +85,10 @@ fn read_msg_from_fd(from: RawFd) -> Result<ProcessExitMessage, JudgeCoreError> {
     Ok(msg)
 }
 
-fn add_epoll_fd(epoll_fd: RawFd, fd: RawFd) -> Result<(), JudgeCoreError> {
-    let mut event = EpollEvent::new(EpollFlags::EPOLLIN, fd as u64);
+fn add_epoll_fd(epoll: &Epoll, fd: RawFd) -> Result<(), JudgeCoreError> {
+    let event = EpollEvent::new(EpollFlags::EPOLLIN, fd as u64);
     log::debug!("Adding fd={} to epoll", fd);
-    Ok(epoll_ctl(
-        epoll_fd,
-        EpollOp::EpollCtlAdd,
-        fd,
-        Some(&mut event),
-    )?)
+    Ok(epoll.add(unsafe { BorrowedFd::borrow_raw(fd) }, event)?)
 }
 
 pub fn run_interact(
@@ -101,7 +97,7 @@ pub fn run_interact(
     output_path: &String,
 ) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
     log::debug!("Creating epoll");
-    let epoll_fd = epoll_create1(EpollCreateFlags::EPOLL_CLOEXEC)?;
+    let epoll = Epoll::new(EpollCreateFlags::EPOLL_CLOEXEC)?;
 
     log::debug!("Creating interact pipes");
     let (proxy_read_user, user_write_proxy) = pipe()?;
@@ -110,14 +106,14 @@ pub fn run_interact(
     let (interactor_read_proxy, proxy_write_interactor) = pipe()?;
 
     log::debug!("Adding read proxy fds to epoll");
-    add_epoll_fd(epoll_fd, proxy_read_user)?;
-    add_epoll_fd(epoll_fd, proxy_read_interactor)?;
+    add_epoll_fd(&epoll, proxy_read_user)?;
+    add_epoll_fd(&epoll, proxy_read_interactor)?;
 
     log::debug!("Creating exit report pipes with epoll");
     let (user_exit_read, user_exit_write) = pipe()?;
     let (interactor_exit_read, interactor_exit_write) = pipe()?;
-    add_epoll_fd(epoll_fd, user_exit_read)?;
-    add_epoll_fd(epoll_fd, interactor_exit_read)?;
+    add_epoll_fd(&epoll, user_exit_read)?;
+    add_epoll_fd(&epoll, interactor_exit_read)?;
 
     let mut user_listener = ProcessListener::new()?;
     let mut interact_listener = ProcessListener::new()?;
@@ -165,7 +161,7 @@ pub fn run_interact(
     let mut interactor_exited = false;
     let mut option_user_result: Option<RawRunResultInfo> = None;
     loop {
-        let num_events = epoll_wait(epoll_fd, &mut events, -1)?;
+        let num_events = epoll.wait(&mut events, -1)?;
         log::debug!("{} events found!", num_events);
 
         for event in events.iter().take(num_events) {
