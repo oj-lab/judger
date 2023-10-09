@@ -10,7 +10,7 @@ description = "A judge library for online judge system"
 [dependencies]
 libc = "0.2"
 libseccomp = "0.3"
-nix = "0.26"
+nix = { version = "0.27", features = ["event", "fs", "process", "resource"] }
 log = "0.4"
 anyhow = "1.0"
 serde = "1"
