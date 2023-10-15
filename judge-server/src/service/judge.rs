@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use crate::error::ServiceError;
+use crate::{error::ServiceError, service::state};
 use actix_web::{post, web, HttpResponse};
 
 use judge_core::{
@@ -28,12 +28,12 @@ pub fn route(cfg: &mut web::ServiceConfig) {
 // TODO: Remove the first `_` when the segment is actually used
 #[derive(Debug, ToSchema, Deserialize)]
 pub struct RunJudgeBody {
-    src: String,
-    src_language: Language
+    code: String,
+    language: Language,
 }
 
 #[utoipa::path(
-    context_path = "/api/v1/judge",
+    context_path = "/api/v1/judge",     
     request_body(content = RunJudgeBody, content_type = "application/json", description = "The info a judge task should refer to"),
     responses(
         (status = 200, description = "Judge run successfully")
@@ -45,23 +45,26 @@ pub async fn run_judge(
     body: web::Json<RunJudgeBody>,
     problem_package_dir: web::Data<PathBuf>,
 ) -> Result<HttpResponse, ServiceError> {
+    state::set_busy().map_err(|e| {
+        println!("Failed to set busy: {:?}", e);
+        ServiceError::InternalError(anyhow::anyhow!("Judge server is busy"))
+    })?;
+
     let package_slug = path.into_inner();
     log::debug!("receive body: {:?}", body);
 
     let uuid = uuid::Uuid::new_v4();
     let runtime_path = PathBuf::from("/tmp").join(uuid.to_string());
-    let src_file_name = format!("src.{}", body.src_language.get_extension());
-    println!("runtime_path: {:?}", runtime_path);
+    let src_file_name = format!("src.{}", body.language.get_extension());
+    log::debug!("runtime_path: {:?}", runtime_path);
     fs::create_dir_all(runtime_path.clone()).map_err(|e| {
-        println!("Failed to create runtime dir: {:?}", e);
+        log::debug!("Failed to create runtime dir: {:?}", e);
         ServiceError::InternalError(anyhow::anyhow!("Failed to create runtime dir"))
     })?;
-    fs::write(runtime_path.clone().join(&src_file_name), body.src.clone()).map_err(
-        |e| {
-            println!("Failed to write src file: {:?}", e);
-            ServiceError::InternalError(anyhow::anyhow!("Failed to write src file"))
-        },
-    )?;
+    fs::write(runtime_path.clone().join(&src_file_name), body.code.clone()).map_err(|e| {
+        log::debug!("Failed to write src file: {:?}", e);
+        ServiceError::InternalError(anyhow::anyhow!("Failed to write src file"))
+    })?;
 
     let handle: JoinHandle<Result<Vec<JudgeResultInfo>, JudgeCoreError>> =
         tokio::spawn(async move {
@@ -69,18 +72,18 @@ pub async fn run_judge(
                 package_type: PackageType::ICPC,
                 package_path: problem_package_dir.join(package_slug.clone()),
                 runtime_path: runtime_path.clone(),
-                src_language: body.src_language,
+                src_language: body.language,
                 src_path: runtime_path.clone().join(&src_file_name),
             });
             if new_builder_result.is_err() {
-                println!(
+                log::debug!(
                     "Failed to new builder result: {:?}",
                     new_builder_result.err()
                 );
                 return Ok(vec![]);
             }
             let builder = new_builder_result?;
-            println!("Builder created: {:?}", builder);
+            log::debug!("Builder created: {:?}", builder);
             let mut results: Vec<JudgeResultInfo> = vec![];
             for idx in 0..builder.testdata_configs.len() {
                 let judge_config = JudgeConfig {
@@ -90,18 +93,19 @@ pub async fn run_judge(
                     runtime: builder.runtime_config.clone(),
                 };
                 let result = judge::common::run_judge(&judge_config)?;
-                println!("Judge result: {:?}", result);
+                log::debug!("Judge result: {:?}", result);
                 results.push(result);
             }
 
-            println!("BatchJudge finished");
+            state::set_idle();
+            log::debug!("Judge finished");
             Ok(results)
         });
 
     match handle.await.unwrap() {
         Ok(results) => Ok(HttpResponse::Ok().json(results)),
         Err(e) => {
-            println!("Failed to await handle: {:?}", e);
+            log::info!("Failed to await handle: {:?}", e);
             Err(ServiceError::InternalError(anyhow::anyhow!("Judge failed")))
         }
     }
