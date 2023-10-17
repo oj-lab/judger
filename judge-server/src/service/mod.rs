@@ -8,7 +8,7 @@ use utoipa::OpenApi;
 #[derive(utoipa::OpenApi)]
 #[openapi(external_docs(
     url = "/swagger-ui/?urls.primaryName=judge",
-    description = "Start judge"
+    description = "Judger API docs",
 ))]
 pub struct ApiDoc;
 
@@ -17,7 +17,7 @@ pub fn route(cfg: &mut web::ServiceConfig) {
         web::scope("/api/v1")
             .configure(judge::route)
             .service(greet::greet)
-            .service(judge::run_judge),
+            .configure(state::route),
     )
     .service(
         utoipa_swagger_ui::SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![
@@ -28,6 +28,10 @@ pub fn route(cfg: &mut web::ServiceConfig) {
             (
                 utoipa_swagger_ui::Url::new("judge", "/api-docs/judge.json"),
                 judge::JudgeApiDoc::openapi(),
+            ),
+            (
+                utoipa_swagger_ui::Url::new("state", "/api-docs/state.json"),
+                state::StateApiDoc::openapi(),
             ),
         ]),
     );

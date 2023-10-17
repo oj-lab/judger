@@ -1,6 +1,9 @@
 use std::sync::RwLock;
 
+use actix_web::{get, web, HttpResponse};
 use lazy_static::lazy_static;
+
+use crate::error::ServiceError;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
@@ -29,4 +32,28 @@ pub fn set_busy() -> anyhow::Result<()> {
 pub fn set_idle() {
     let mut state = STATE.write().unwrap();
     *state = State::Idle;
+}
+
+#[derive(utoipa::OpenApi)]
+#[openapi(paths(get_state))]
+pub struct StateApiDoc;
+
+pub fn route(cfg: &mut web::ServiceConfig) {
+    cfg.service(web::scope("/state").service(get_state));
+}
+
+#[utoipa::path(
+    context_path = "/api/v1/state",     
+    responses(
+        (status = 200, description = "Judge run successfully")
+    )
+)]
+#[get("")]
+pub async fn get_state() -> Result<HttpResponse, ServiceError> {
+    let state = STATE.read().map_err(|e| {
+        ServiceError::InternalError(anyhow::anyhow!("Failed to lock state: {:?}", e))
+    })?;
+    Ok(HttpResponse::Ok().content_type(
+        "application/text; charset=utf-8",
+    ).body(format!("{:?}", *state)))
 }
