@@ -191,7 +191,7 @@ fn get_default_rusage() -> rusage {
     }
 }
 
-const DEFAULT_SCMP_WHITELIST: [&str; 28] = [
+const DEFAULT_SCMP_WHITELIST: [&str; 27] = [
     "read",
     "fstat",
     "mmap",
@@ -219,5 +219,4 @@ const DEFAULT_SCMP_WHITELIST: [&str; 28] = [
     "prlimit64",
     "futex",
     "openat",
-    "clock_nanosleep"
 ];
