@@ -108,7 +108,7 @@ pub mod package_discription_test {
         use super::StoragedPackageDiscriptionMap;
         use std::path::PathBuf;
 
-        let folder = PathBuf::from("../tmp");
+        let folder = PathBuf::from("../judge-core/tests/temp");
         let mut package_discription_map =
             StoragedPackageDiscriptionMap::init(folder.clone()).unwrap();
 

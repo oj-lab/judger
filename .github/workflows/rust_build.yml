@@ -15,8 +15,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-        with:
-          submodules: recursive
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y libseccomp-dev protobuf-compiler gcc-11 g++-11
       - name: Setup gcc/g++ 11
@@ -26,7 +24,7 @@ jobs:
       - name: Check ENV
         run: echo $(rustup --version && g++ -v)
       - name: Build test dist
-        run: cd test-collection && ./build.sh && cd ..
+        run: cd judge-core/tests/data/built-in-programs && ./build.sh && cd ../../../../
       - name: Run tests
         # Currently use --test-threads=1 to avoid log mess
         # Should only be used in judge-core later

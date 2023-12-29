@@ -94,7 +94,7 @@ fn add_epoll_fd(epoll: &Epoll, fd: RawFd) -> Result<(), JudgeCoreError> {
 pub fn run_interact(
     config: &JudgeConfig,
     mut interactor_executor: Executor,
-    output_path: &String,
+    output_path: &PathBuf,
 ) -> Result<Option<JudgeResultInfo>, JudgeCoreError> {
     log::debug!("Creating epoll");
     let epoll = Epoll::new(EpollCreateFlags::EPOLL_CLOEXEC)?;
@@ -229,96 +229,5 @@ pub fn run_interact(
             exit_status: 0,
             checker_exit_status: 0,
         }))
-    }
-}
-
-#[cfg(test)]
-pub mod interact_judge_test {
-    use std::path::PathBuf;
-
-    use crate::{
-        compiler::Language,
-        judge::{
-            result::JudgeVerdict, CheckerConfig, JudgeConfig, ProgramConfig, RuntimeConfig,
-            TestdataConfig,
-        },
-        run::{executor::Executor, RlimitConfigs},
-    };
-
-    use super::run_interact;
-
-    const TEST_CONFIG: RlimitConfigs = RlimitConfigs {
-        stack_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
-        as_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
-        cpu_limit: Some((1, 2)),
-        nproc_limit: Some((1, 1)),
-        fsize_limit: Some((1024, 1024)),
-    };
-
-    fn init() {
-        let _ = env_logger::builder()
-            .filter_level(log::LevelFilter::Debug)
-            .try_init();
-    }
-
-    fn build_test_config(program_executor: Executor) -> JudgeConfig {
-        JudgeConfig {
-            runtime: RuntimeConfig {
-                rlimit_configs: TEST_CONFIG,
-            },
-            test_data: TestdataConfig {
-                input_file_path: PathBuf::from("../tmp/in"),
-                answer_file_path: PathBuf::from("../tmp/ans"),
-            },
-            checker: CheckerConfig {
-                executor: Some(
-                    Executor::new(
-                        Language::Cpp,
-                        PathBuf::from("./../test-collection/dist/checkers/lcmp"),
-                    )
-                    .unwrap(),
-                ),
-                output_file_path: PathBuf::from("../tmp/check"),
-            },
-            program: ProgramConfig {
-                executor: program_executor,
-                output_file_path: PathBuf::from("../tmp/out"),
-            },
-        }
-    }
-
-    #[test]
-    fn test_run_interact() {
-        init();
-
-        let interactor_executor = Executor::new(
-            Language::Cpp,
-            PathBuf::from("./../test-collection/dist/checkers/interactor-echo"),
-        )
-        .unwrap();
-        let program_executor = Executor::new(
-            Language::Cpp,
-            PathBuf::from("./../test-collection/dist/programs/read_and_write"),
-        )
-        .unwrap();
-        let runner_config = build_test_config(program_executor);
-        let result = run_interact(
-            &runner_config,
-            interactor_executor,
-            &String::from("../tmp/interactor"),
-        );
-        match result {
-            Ok(Some(result)) => {
-                log::debug!("{:?}", result);
-                assert!(result.verdict == JudgeVerdict::Accepted);
-            }
-            Ok(None) => {
-                log::debug!("Ignoring this result, for it's from a fork child process");
-            }
-            Err(e) => {
-                log::error!("meet error: {:?}", e);
-                assert!(false);
-            }
-        }
     }
 }

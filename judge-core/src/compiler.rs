@@ -2,7 +2,7 @@ use crate::error::JudgeCoreError;
 use crate::utils::get_pathbuf_str;
 use anyhow::anyhow;
 use serde_derive::{Serialize, Deserialize};
-use std::fmt;
+use std::{fmt, fs};
 use std::path::PathBuf;
 use std::{process::Command, str::FromStr};
 
@@ -89,8 +89,8 @@ impl FromStr for Language {
 ///
 /// let compiler = Compiler::new(Language::Cpp, vec!["-std=c++17".to_string()]);
 /// match compiler.compile(
-///     &PathBuf::from("../test-collection/src/programs/infinite_loop.cpp"),
-///     &PathBuf::from("../tmp/infinite_loop_test"),
+///     &PathBuf::from("tests/data/built-in-programs/src/programs/infinite_loop.cpp"),
+///     &PathBuf::from("tests/temp/infinite_loop_test"),
 /// ) {
 ///     Ok(out) => {
 ///         log::info!("compiled with output: {}", out);
@@ -151,6 +151,10 @@ impl Compiler {
             target_path_string
         );
 
+        if let Some(target_parent) = target_path.parent() {
+            fs::create_dir_all(target_parent)?;
+        }
+
         if PathBuf::from(target_path).exists() {
             std::fs::remove_file(target_path)?;
         }
@@ -172,47 +176,6 @@ impl Compiler {
             let error_output = String::from_utf8_lossy(&output.stderr).to_string();
             log::error!("Compile error: {}", error_output);
             Err(JudgeCoreError::AnyhowError(anyhow!(error_output)))
-        }
-    }
-}
-
-#[cfg(test)]
-pub mod compiler {
-    use std::path::PathBuf;
-
-    use super::{Compiler, Language};
-
-    fn init() {
-        let _ = env_logger::builder().is_test(true).try_init();
-    }
-
-    #[test]
-    fn test_compile_cpp() {
-        init();
-        let compiler = Compiler::new(Language::Cpp, vec!["-std=c++17".to_string()]);
-        match compiler.compile(
-            &PathBuf::from("../test-collection/src/programs/infinite_loop.cpp"),
-            &PathBuf::from("../tmp/infinite_loop_test"),
-        ) {
-            Ok(out) => {
-                log::info!("{}", out);
-            }
-            Err(e) => panic!("{:?}", e),
-        }
-    }
-
-    #[test]
-    fn test_compile_py() {
-        init();
-        let compiler = Compiler::new(Language::Python, vec![]);
-        match compiler.compile(
-            &PathBuf::from("../test-collection/src/programs/read_and_write.py"),
-            &PathBuf::from("../tmp/read_and_write"),
-        ) {
-            Ok(out) => {
-                log::info!("{}", out);
-            }
-            Err(e) => panic!("{:?}", e),
         }
     }
 }
