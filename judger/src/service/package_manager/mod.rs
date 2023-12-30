@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use judge_core::package::PackageType;
 
-use crate::error::JudgeServiceError;
+use crate::service::error::JudgeServiceError;
 
 use self::discription::StoragedPackageDiscriptionMap;
 

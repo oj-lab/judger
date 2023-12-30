@@ -5,5 +5,10 @@
     "judge-service": "helper",
     "judge-server": "server",
     "postman": "api"
-  }
+  },
+  "rust-analyzer.linkedProjects": [
+    "./judger/Cargo.toml",
+    "./judger/Cargo.toml",
+    "./judger/Cargo.toml"
+  ]
 }

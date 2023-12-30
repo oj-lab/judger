@@ -5,5 +5,5 @@
 Run the following command under project root instead.
 
 ```sh
-docker build --pull --rm -f "docker/judge-server.dockerfile" -t oj-lab/judge-server:latest .
+docker build --pull --rm -f "docker/judger-server.dockerfile" -t oj-lab/judger-server:latest .
 ```
