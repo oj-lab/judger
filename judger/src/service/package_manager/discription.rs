@@ -7,7 +7,7 @@ use std::{
 use judge_core::{error::JudgeCoreError, package::PackageType};
 use serde_derive::{Deserialize, Serialize};
 
-use crate::error::JudgeServiceError;
+use crate::service::error::JudgeServiceError;
 
 pub const PACKAGES_DISCRIPTION_FILE_NAME: &str = "judge-pd.json";
 
@@ -97,53 +97,4 @@ fn update_package_discription_file(
         package_discription_file_content,
     )?;
     Ok(())
-}
-
-#[cfg(test)]
-pub mod package_discription_test {
-    use judge_core::package::PackageType;
-
-    #[test]
-    fn test_storaged_package_discription_map() {
-        use super::StoragedPackageDiscriptionMap;
-        use std::path::PathBuf;
-
-        let folder = PathBuf::from("../judge-core/tests/temp");
-        let mut package_discription_map =
-            StoragedPackageDiscriptionMap::init(folder.clone()).unwrap();
-
-        let package_discription = super::PackageDiscription {
-            name: "test".to_string(),
-            revision: 1,
-            package_type: PackageType::ICPC,
-        };
-        package_discription_map.insert(package_discription).unwrap();
-
-        let package_discription_map = StoragedPackageDiscriptionMap::load(folder).unwrap();
-        assert_eq!(package_discription_map.package_discription_map.len(), 1);
-        assert_eq!(
-            package_discription_map
-                .package_discription_map
-                .get("test")
-                .unwrap()
-                .name,
-            "test"
-        );
-        assert_eq!(
-            package_discription_map
-                .package_discription_map
-                .get("test")
-                .unwrap()
-                .revision,
-            1
-        );
-        assert_eq!(
-            package_discription_map
-                .package_discription_map
-                .get("test")
-                .unwrap()
-                .package_type,
-            PackageType::ICPC
-        );
-    }
 }
