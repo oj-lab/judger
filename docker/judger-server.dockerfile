@@ -18,4 +18,4 @@ COPY dev-problem-package /workspace/dev-problem-package
 
 ENV RUST_LOG=DEBUG
 EXPOSE 8000
-CMD [ "judge-server" ]
+CMD [ "judger-server" ]
