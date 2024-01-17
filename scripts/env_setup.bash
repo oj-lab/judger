@@ -10,4 +10,6 @@ if [[ $CUR_SYSTEM =~ $UBUNTU_FLAG ]];then
     sudo apt install -y libseccomp-dev gcc
 fi
 
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs >> scripts/rustup.sh
+chmod +x scripts/rustup.sh
+./scripts/rustup.sh -y

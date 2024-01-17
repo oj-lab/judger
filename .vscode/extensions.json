@@ -1,3 +1,7 @@
 {
-  "recommendations": ["swellaby.rust-pack", "lizebang.bash-extension-pack", "pkief.material-icon-theme"]
+  "recommendations": [
+    "tamasfe.even-better-toml",
+    "rust-lang.rust-analyzer",
+    "mads-hartmann.bash-ide-vscode"
+  ]
 }
