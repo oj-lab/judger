@@ -1,4 +1,13 @@
 {
     "image": "mcr.microsoft.com/devcontainers/universal:2",
-    "onCreateCommand": "${containerWorkspaceFolder}/ENV_SETUP.bash"
+    "postCreateCommand": "${containerWorkspaceFolder}/scripts/env_setup.bash",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "tamasfe.even-better-toml",
+                "rust-lang.rust-analyzer",
+                "mads-hartmann.bash-ide-vscode"
+            ]
+        }
+    }
 }
