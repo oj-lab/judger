@@ -6,7 +6,7 @@ mod service;
 extern crate serde_derive;
 extern crate lazy_static;
 
-use actix_web::{App, HttpServer, web::Data};
+use actix_web::{web::Data, App, HttpServer};
 use utoipa::OpenApi;
 
 #[actix_web::main] // or #[tokio::main]

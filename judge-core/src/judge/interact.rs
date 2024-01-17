@@ -9,9 +9,7 @@ use crate::utils::get_pathbuf_str;
 
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
-use nix::sys::epoll::{
-    Epoll, EpollCreateFlags, EpollEvent, EpollFlags,
-};
+use nix::sys::epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags};
 use nix::unistd::{pipe, read, write};
 use std::fs::File;
 use std::os::fd::BorrowedFd;

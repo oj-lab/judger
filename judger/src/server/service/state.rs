@@ -53,7 +53,7 @@ pub async fn get_state() -> Result<HttpResponse, ServiceError> {
     let state = STATE.read().map_err(|e| {
         ServiceError::InternalError(anyhow::anyhow!("Failed to lock state: {:?}", e))
     })?;
-    Ok(HttpResponse::Ok().content_type(
-        "application/text; charset=utf-8",
-    ).body(format!("{:?}", *state)))
+    Ok(HttpResponse::Ok()
+        .content_type("application/text; charset=utf-8")
+        .body(format!("{:?}", *state)))
 }

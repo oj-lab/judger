@@ -3,10 +3,13 @@ use std::path::PathBuf;
 use judge_core::{
     compiler::Language,
     judge::{
-        interact::run_interact, result::JudgeVerdict, CheckerConfig, JudgeConfig, ProgramConfig,
-        RuntimeConfig, TestdataConfig, builder::{JudgeBuilder, JudgeBuilderInput},
+        builder::{JudgeBuilder, JudgeBuilderInput},
+        interact::run_interact,
+        result::JudgeVerdict,
+        CheckerConfig, JudgeConfig, ProgramConfig, RuntimeConfig, TestdataConfig,
     },
-    run::{executor::Executor, RlimitConfigs}, package::PackageType,
+    package::PackageType,
+    run::{executor::Executor, RlimitConfigs},
 };
 
 use judge_core::judge::common::run_judge;
@@ -156,7 +159,8 @@ fn test_build_icpc() {
         package_path: PathBuf::from(TEST_DATA_PATH).join("packages/icpc/hello_world"),
         runtime_path: PathBuf::from(TEST_TEMP_PATH).join("hello_world"),
         src_language: Language::Cpp,
-        src_path: PathBuf::from(TEST_DATA_PATH).join("built-in-programs/src/programs/read_and_write.cpp"),
+        src_path: PathBuf::from(TEST_DATA_PATH)
+            .join("built-in-programs/src/programs/read_and_write.cpp"),
     })
     .unwrap();
     log::info!("builder: {:?}", builder);

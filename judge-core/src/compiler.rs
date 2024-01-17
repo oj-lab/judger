@@ -1,9 +1,9 @@
 use crate::error::JudgeCoreError;
 use crate::utils::get_pathbuf_str;
 use anyhow::anyhow;
-use serde_derive::{Serialize, Deserialize};
-use std::{fmt, fs};
+use serde_derive::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::{fmt, fs};
 use std::{process::Command, str::FromStr};
 
 const TEMPLATE_ARG_SRC_PATH: &str = "{src_path}";
