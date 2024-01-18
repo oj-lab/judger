@@ -1,5 +1,7 @@
 mod client;
+mod environment;
 mod error;
+
 use client::HttpClient;
 use error::ClientError;
 use judge_core::judge;
@@ -47,9 +49,10 @@ struct JudgeTask {
 
 #[tokio::main]
 async fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
+    let opt = environment::load_option();
+    environment::setup_logger();
     let mut interval = interval(Duration::from_secs(10));
-    let base_url = "http://localhost:8080/api/v1/judge".to_string();
+    let base_url = opt.base_url;
     let client = client::HttpClient::new(base_url);
 
     loop {
@@ -66,7 +69,7 @@ async fn main() {
                             log::debug!("Report failed {:?}", report_response);
                             return;
                         }
-                        log::debug!("Submission {:?} report success", submission_uid);
+                        log::info!("Submission {:?} report success", submission_uid);
                     }
                     Err(e) => log::info!("Error judge task: {:?}", e),
                 }
