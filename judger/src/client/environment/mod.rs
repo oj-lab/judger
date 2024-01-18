@@ -9,6 +9,9 @@ pub struct JudgeClientOpt {
     /// Port to listen to
     #[structopt(env = "BASE_URL", default_value = "http://localhost:8080/api/v1/judge")]
     pub base_url: String,
+
+    #[structopt(env = "INTERVAL", default_value = "10")]
+    pub interval: i32,
 }
 
 pub fn load_option() -> JudgeClientOpt {
