@@ -2,4 +2,4 @@ target/
 tmp/
 !tmp/.gitkeep
 Cargo.lock
-scripts/rustup.sh
+scripts/thirdparty/

@@ -1,5 +1,5 @@
 {
-    "image": "mcr.microsoft.com/devcontainers/universal:2",
+    "image": "mcr.microsoft.com/devcontainers/rust:1",
     "postCreateCommand": "${containerWorkspaceFolder}/scripts/env_setup.bash",
     "customizations": {
         "vscode": {
