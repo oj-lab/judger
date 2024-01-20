@@ -1,8 +1,14 @@
 #!/bin/bash
 
 if [ -x "$(command -v apt)" ]; then
-    sudo apt update
-    sudo apt install -y libseccomp-dev gcc curl pkg-config libssl-dev
+    # if recently updated jump to installing dependencies
+    if [ "$(find /var/cache/apt/pkgcache.bin -mmin -60)" ]; then
+        echo 'Skipping apt update...'
+    else
+        echo 'Updating apt...'
+        sudo apt update
+    fi
+    sudo apt install -y libseccomp-dev gcc curl pkg-config libssl-dev cmake
 fi
 
 if [ ! -d "scripts/thirdparty" ]; then
@@ -29,5 +35,10 @@ if ! [ -x "$(command -v rclone)" ]; then
     echo 'If it is taking too long to download the rclone install package, try manually install it'
     sudo scripts/thirdparty/rclone_install.sh
 fi
+
+echo 'Compiling built-in programs for judge-core testing...'
+PWD=$(pwd)
+cd judge-core/tests/data/built-in-programs && ./build.sh
+cd "$PWD" || exit
 
 echo 'Environment setup complete.'

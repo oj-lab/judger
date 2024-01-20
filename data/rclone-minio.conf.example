@@ -1,0 +1,9 @@
+[minio]
+type = s3
+provider = Minio
+env_auth = false
+access_key_id = YOUR_ACCESS_KEY
+secret_access_key = YOUR_SECRET_KEY
+endpoint = http://127.0.0.1:9000
+location_constraint =
+acl = private

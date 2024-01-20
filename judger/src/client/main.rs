@@ -122,7 +122,7 @@ async fn report_task(
 }
 
 fn run_judge(task: JudgeTask) -> Result<Vec<JudgeResultInfo>, ClientError> {
-    let problem_package_dir = PathBuf::from("dev-problem-package");
+    let problem_package_dir = PathBuf::from("data/dev-problem-package");
     let problem_slug = task.problem_slug;
     let uuid = uuid::Uuid::new_v4();
     let runtime_path = PathBuf::from("/tmp").join(uuid.to_string());
