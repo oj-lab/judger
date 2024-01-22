@@ -12,7 +12,7 @@ pub struct JudgeServerOpt {
     #[structopt(env = "PORT", default_value = "8080")]
     pub port: u16,
 
-    #[structopt(long, default_value = "dev-problem-package")]
+    #[structopt(long, default_value = "data/dev-problem-package")]
     pub problem_package_dir: PathBuf,
 }
 

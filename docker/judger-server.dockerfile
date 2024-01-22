@@ -14,7 +14,7 @@ RUN apt update && apt install -y libseccomp-dev gcc g++
 COPY --from=build /usr/src/judger/target/release/judger-server /usr/local/bin/judger-server
 RUN mkdir /workspace
 WORKDIR /workspace
-COPY dev-problem-package /workspace/dev-problem-package
+COPY data/dev-problem-package /workspace/data/dev-problem-package
 
 ENV RUST_LOG=DEBUG
 EXPOSE 8000
