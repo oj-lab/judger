@@ -1,3 +1,4 @@
+mod client;
 mod environment;
 mod error;
 mod service;
@@ -21,6 +22,10 @@ async fn main() -> std::io::Result<()> {
     //         log::debug!("JudgeSever heartbeat")
     //     }
     // });
+
+    tokio::spawn(async move {
+        client::run_client(opt.base_url, opt.interval as u64).await;
+    });
 
     let port = opt.port;
 

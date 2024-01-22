@@ -1,9 +1,6 @@
-mod client;
-mod environment;
-mod error;
-
-use client::HttpClient;
-use error::ClientError;
+mod httpclient;
+use crate::error::ServiceError;
+use httpclient::HttpClient;
 use judge_core::judge;
 use judge_core::{
     compiler::Language,
@@ -47,13 +44,9 @@ struct JudgeTask {
     redis_stream_id: String,
 }
 
-#[tokio::main]
-async fn main() {
-    let opt = environment::load_option();
-    environment::setup_logger();
-    let mut interval = interval(Duration::from_secs(10));
-    let base_url = opt.base_url;
-    let client = client::HttpClient::new(base_url);
+pub async fn run_client(base_url: String, interval_sec: u64) {
+    let mut interval = interval(Duration::from_secs(interval_sec));
+    let client = HttpClient::new(base_url);
 
     loop {
         interval.tick().await;
@@ -79,7 +72,7 @@ async fn main() {
     }
 }
 
-async fn pick_task(client: &HttpClient) -> Result<JudgeTask, ClientError> {
+async fn pick_task(client: &HttpClient) -> Result<JudgeTask, ServiceError> {
     let pick_url = "/task/pick";
     let body = PickBody {
         consumer: "".to_string(),
@@ -88,7 +81,7 @@ async fn pick_task(client: &HttpClient) -> Result<JudgeTask, ClientError> {
 
     match response.status() {
         reqwest::StatusCode::OK => Ok(response.json::<PickResponse>().await?.task),
-        _ => Err(ClientError::PickFail(anyhow::anyhow!("Queue is empty"))),
+        _ => Err(ServiceError::ClientError(anyhow::anyhow!("Queue is empty"))),
     }
 }
 
@@ -96,7 +89,7 @@ async fn report_task(
     client: &HttpClient,
     stream_id: &str,
     results: Vec<JudgeResultInfo>,
-) -> Result<(), ClientError> {
+) -> Result<(), ServiceError> {
     let report_url = "/task/report";
     let body = ReportBody {
         consumer: "".to_string(),
@@ -117,11 +110,11 @@ async fn report_task(
             );
             Ok(())
         }
-        _ => Err(ClientError::ReportFail(anyhow::anyhow!("Report Failed"))),
+        _ => Err(ServiceError::ClientError(anyhow::anyhow!("Report Failed"))),
     }
 }
 
-fn run_judge(task: JudgeTask) -> Result<Vec<JudgeResultInfo>, ClientError> {
+fn run_judge(task: JudgeTask) -> Result<Vec<JudgeResultInfo>, ServiceError> {
     let problem_package_dir = PathBuf::from("data/dev-problem-package");
     let problem_slug = task.problem_slug;
     let uuid = uuid::Uuid::new_v4();
@@ -130,11 +123,11 @@ fn run_judge(task: JudgeTask) -> Result<Vec<JudgeResultInfo>, ClientError> {
     log::debug!("runtime_path: {:?}", runtime_path);
     fs::create_dir_all(runtime_path.clone()).map_err(|e| {
         log::debug!("Failed to create runtime dir: {:?}", e);
-        ClientError::InternalError(anyhow::anyhow!("Failed to create runtime dir"))
+        ServiceError::InternalError(anyhow::anyhow!("Failed to create runtime dir"))
     })?;
     fs::write(runtime_path.clone().join(&src_file_name), task.code.clone()).map_err(|e| {
         log::debug!("Failed to write src file: {:?}", e);
-        ClientError::InternalError(anyhow::anyhow!("Failed to write src file"))
+        ServiceError::InternalError(anyhow::anyhow!("Failed to write src file"))
     })?;
 
     let new_builder_result = JudgeBuilder::new(JudgeBuilderInput {
@@ -145,7 +138,7 @@ fn run_judge(task: JudgeTask) -> Result<Vec<JudgeResultInfo>, ClientError> {
         src_path: runtime_path.clone().join(&src_file_name),
     });
     if new_builder_result.is_err() {
-        return Err(ClientError::InternalError(anyhow::anyhow!(
+        return Err(ServiceError::InternalError(anyhow::anyhow!(
             "Failed to new builder result: {:?}",
             new_builder_result.err()
         )));

@@ -31,7 +31,7 @@ cargo run --bin judger-cli -- batch-judge \
 
 ### How to run
 
-`cargo run --bin judger-server -- --env-path ./judge-server/src/environment/.env.development`
+`cargo run --bin judger-server -- --env-path ./judger/src/server/environment/.env.development`
 
 ### How to visit OpenAPI
 

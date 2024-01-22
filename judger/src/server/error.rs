@@ -17,6 +17,9 @@ pub enum ServiceError {
     Unauthorized(anyhow::Error),
     #[error("Unauthorized: {0}, Msg: {1}")]
     UnauthorizedWithMsg(anyhow::Error, String),
+
+    #[error("Client Error: {0}")]
+    ClientError(anyhow::Error),
 }
 
 #[derive(Serialize)]
@@ -58,6 +61,12 @@ impl ResponseError for ServiceError {
                 };
                 HttpResponse::Unauthorized().json(response_body)
             }
+            ServiceError::ClientError(ref err) => {
+                let response_body = ServiceErrorBody {
+                    msg: Some(format!("Internal Error: {}", err)),
+                };
+                HttpResponse::InternalServerError().json(response_body)
+            }
         }
     }
 }
@@ -65,5 +74,11 @@ impl ResponseError for ServiceError {
 impl From<JudgeCoreError> for ServiceError {
     fn from(value: JudgeCoreError) -> Self {
         Self::InternalError(anyhow::anyhow!("{:?}", value))
+    }
+}
+
+impl From<reqwest::Error> for ServiceError {
+    fn from(value: reqwest::Error) -> Self {
+        Self::ClientError(anyhow::anyhow!("{:?}", value))
     }
 }
