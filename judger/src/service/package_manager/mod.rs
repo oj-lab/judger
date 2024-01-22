@@ -1,4 +1,4 @@
-pub mod discription;
+pub mod description;
 
 use std::path::PathBuf;
 
@@ -6,11 +6,11 @@ use judge_core::package::PackageType;
 
 use crate::service::error::JudgeServiceError;
 
-use self::discription::StoragedPackageDiscriptionMap;
+use self::description::StoragedPackageDescriptionMap;
 
 pub struct PackageManager {
     pub folder_path: PathBuf,
-    pub package_discription_map: StoragedPackageDiscriptionMap,
+    pub package_description_map: StoragedPackageDescriptionMap,
 }
 
 impl PackageManager {
@@ -26,22 +26,22 @@ impl PackageManager {
             std::fs::create_dir_all(&folder_path)?;
         }
 
-        let discription_file_path = folder_path.join(discription::PACKAGES_DISCRIPTION_FILE_NAME);
-        if discription_file_path.exists() && discription_file_path.is_dir() {
+        let description_file_path = folder_path.join(description::PACKAGES_DESCRIPTION_FILE_NAME);
+        if description_file_path.exists() && description_file_path.is_dir() {
             return Err(JudgeServiceError::AnyhowError(anyhow::anyhow!(
-                "Discription file '{}' appears to be a folder.",
+                "Description file '{}' appears to be a folder.",
                 folder_path.display()
             )));
         }
-        let package_discription_map = if !discription_file_path.exists() {
-            StoragedPackageDiscriptionMap::init(folder_path.clone())?
+        let package_description_map = if !description_file_path.exists() {
+            StoragedPackageDescriptionMap::init(folder_path.clone())?
         } else {
-            StoragedPackageDiscriptionMap::load(folder_path.clone())?
+            StoragedPackageDescriptionMap::load(folder_path.clone())?
         };
 
         Ok(Self {
             folder_path,
-            package_discription_map,
+            package_description_map,
         })
     }
 
@@ -50,8 +50,8 @@ impl PackageManager {
         package_name: String,
         package_type: PackageType,
     ) -> Result<(), JudgeServiceError> {
-        let package_discription = self.package_discription_map.get(&package_name);
-        if package_discription.is_some() {
+        let package_description = self.package_description_map.get(&package_name);
+        if package_description.is_some() {
             return Err(JudgeServiceError::AnyhowError(anyhow::anyhow!(
                 "Package '{}' already exists.",
                 package_name
@@ -62,9 +62,9 @@ impl PackageManager {
             .get_package_agent(self.folder_path.join(&package_name))?
             .validate()
         {
-            let package_discription =
-                discription::PackageDiscription::new(package_name, package_type)?;
-            self.package_discription_map.insert(package_discription)?;
+            let package_description =
+                description::PackageDescription::new(package_name, package_type)?;
+            self.package_description_map.insert(package_description)?;
         } else {
             return Err(JudgeServiceError::AnyhowError(anyhow::anyhow!(
                 "Package '{}' is not valid.",
