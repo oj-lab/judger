@@ -10,7 +10,7 @@ use judge_core::{
     judge::JudgeConfig,
     package::PackageType,
 };
-use judger::service::package_manager::package::sync_package;
+use judger::service::package_manager::package;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use std::{fs, path::PathBuf};
@@ -119,13 +119,13 @@ async fn report_task(
 }
 
 fn run_judge(task: JudgeTask) -> Result<Vec<JudgeResultInfo>, ClientError> {
-    if let Err(sync_err) = sync_package() {
+    if let Err(sync_err) = package::sync_package(&PathBuf::from("data"), "oj-lab-problem-package") {
         return Err(ClientError::PackageError(sync_err));
     };
     if let Err(set_err) = state::set_busy() {
         return Err(ClientError::InternalError(set_err));
     }
-    let problem_package_dir = PathBuf::from("data/dev-problem-package");
+    let problem_package_dir = PathBuf::from(format!("data/{}", package::PACKAGE_SAVE_DIRNAME));
     let problem_slug = task.problem_slug;
     let uuid = uuid::Uuid::new_v4();
     let runtime_path = PathBuf::from("/tmp").join(uuid.to_string());
