@@ -52,8 +52,3 @@ path ="src/cli/main.rs"
 [[bin]]
 name ="judger-server"
 path ="src/server/main.rs"
-
-[[bin]]
-name ="judger-client"
-path ="src/client/main.rs"
-

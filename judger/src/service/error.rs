@@ -6,6 +6,7 @@ use judge_core::error::JudgeCoreError;
 pub enum JudgeServiceError {
     JudgeCoreError(JudgeCoreError),
     IOError(io::Error),
+    RcloneError(anyhow::Error),
     AnyhowError(anyhow::Error),
 }
 

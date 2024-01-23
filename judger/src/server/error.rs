@@ -2,6 +2,7 @@
 
 use actix_web::{HttpResponse, ResponseError};
 use judge_core::error::JudgeCoreError;
+use judger::service::error::JudgeServiceError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ServiceError {
@@ -17,6 +18,12 @@ pub enum ServiceError {
     Unauthorized(anyhow::Error),
     #[error("Unauthorized: {0}, Msg: {1}")]
     UnauthorizedWithMsg(anyhow::Error, String),
+}
+
+#[derive(Debug)]
+pub enum ClientError {
+    InternalError(anyhow::Error),
+    PackageError(JudgeServiceError),
 }
 
 #[derive(Serialize)]
@@ -63,6 +70,18 @@ impl ResponseError for ServiceError {
 }
 
 impl From<JudgeCoreError> for ServiceError {
+    fn from(value: JudgeCoreError) -> Self {
+        Self::InternalError(anyhow::anyhow!("{:?}", value))
+    }
+}
+
+impl From<reqwest::Error> for ClientError {
+    fn from(value: reqwest::Error) -> Self {
+        Self::InternalError(anyhow::anyhow!("{:?}", value))
+    }
+}
+
+impl From<JudgeCoreError> for ClientError {
     fn from(value: JudgeCoreError) -> Self {
         Self::InternalError(anyhow::anyhow!("{:?}", value))
     }

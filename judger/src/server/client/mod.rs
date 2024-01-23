@@ -1,9 +1,7 @@
-mod client;
-mod environment;
-mod error;
-
-use client::HttpClient;
-use error::ClientError;
+mod httpclient;
+use crate::error::ClientError;
+use crate::service::state;
+use httpclient::HttpClient;
 use judge_core::judge;
 use judge_core::{
     compiler::Language,
@@ -12,6 +10,7 @@ use judge_core::{
     judge::JudgeConfig,
     package::PackageType,
 };
+use judger::service::package_manager::package;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use std::{fs, path::PathBuf};
@@ -47,13 +46,9 @@ struct JudgeTask {
     redis_stream_id: String,
 }
 
-#[tokio::main]
-async fn main() {
-    let opt = environment::load_option();
-    environment::setup_logger();
-    let mut interval = interval(Duration::from_secs(10));
-    let base_url = opt.base_url;
-    let client = client::HttpClient::new(base_url);
+pub async fn run_client(base_url: String, interval_sec: u64) {
+    let mut interval = interval(Duration::from_secs(interval_sec));
+    let client = HttpClient::new(base_url);
 
     loop {
         interval.tick().await;
@@ -88,7 +83,9 @@ async fn pick_task(client: &HttpClient) -> Result<JudgeTask, ClientError> {
 
     match response.status() {
         reqwest::StatusCode::OK => Ok(response.json::<PickResponse>().await?.task),
-        _ => Err(ClientError::PickFail(anyhow::anyhow!("Queue is empty"))),
+        _ => Err(ClientError::InternalError(anyhow::anyhow!(
+            "Queue is empty"
+        ))),
     }
 }
 
@@ -117,12 +114,18 @@ async fn report_task(
             );
             Ok(())
         }
-        _ => Err(ClientError::ReportFail(anyhow::anyhow!("Report Failed"))),
+        _ => Err(ClientError::InternalError(anyhow::anyhow!("Report Failed"))),
     }
 }
 
 fn run_judge(task: JudgeTask) -> Result<Vec<JudgeResultInfo>, ClientError> {
-    let problem_package_dir = PathBuf::from("data/dev-problem-package");
+    if let Err(sync_err) = package::sync_package(&PathBuf::from("data"), "oj-lab-problem-package") {
+        return Err(ClientError::PackageError(sync_err));
+    };
+    if let Err(set_err) = state::set_busy() {
+        return Err(ClientError::InternalError(set_err));
+    }
+    let problem_package_dir = PathBuf::from(format!("data/{}", package::PACKAGE_SAVE_DIRNAME));
     let problem_slug = task.problem_slug;
     let uuid = uuid::Uuid::new_v4();
     let runtime_path = PathBuf::from("/tmp").join(uuid.to_string());
@@ -166,5 +169,6 @@ fn run_judge(task: JudgeTask) -> Result<Vec<JudgeResultInfo>, ClientError> {
     }
 
     log::debug!("Judge finished");
+    state::set_idle();
     Ok(results)
 }
