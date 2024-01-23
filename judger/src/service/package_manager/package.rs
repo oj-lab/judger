@@ -20,7 +20,7 @@ fn check_rclone() -> Result<(), JudgeServiceError> {
     }
 }
 
-fn sync_package() -> Result<(), JudgeServiceError> {
+pub fn sync_package() -> Result<(), JudgeServiceError> {
     let check_res = check_rclone();
     if check_res.as_ref().is_err() {
         return check_res;
