@@ -1,4 +1,5 @@
 pub mod description;
+pub mod package;
 
 use std::path::PathBuf;
 
