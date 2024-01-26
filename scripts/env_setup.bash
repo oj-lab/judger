@@ -20,7 +20,7 @@ if ! [ -x "$(command -v rustup)" ]; then
     echo 'rustup not found. Installing rustup...'
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > scripts/thirdparty/rustup.sh
     chmod +x scripts/thirdparty/rustup.sh
-    sudo scripts/thirdparty/rustup.sh -y
+    scripts/thirdparty/rustup.sh -y
 fi
 
 echo 'Ensuring rclone is installed...'
