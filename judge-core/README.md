@@ -19,7 +19,7 @@ supposing the judge directory structure is following [ICPC Problem Package forma
 Currently we are using a very normal approach by just running the following command:
 
 ``` shell
-strace ./tmp/icpc/program
+strace $program_path
 ```
 
 It will be better if we have a strace runned executor.
