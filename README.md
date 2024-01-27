@@ -1,7 +1,7 @@
 # judger-rs
 
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/OJ-lab/judger/rust-check.yml)
-![Discord](https://img.shields.io/discord/916955582181822486?label=discord&color=blue)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/OJ-lab/judger/rust-check.yml?logo=github&label=Core%20Tests)
+![Discord](https://img.shields.io/discord/916955582181822486?label=Discord&color=blue&logo=discord&logoColor=white)
 
 Judger is supposed to be a simple **sandbox service** which works for online-judge systems.
 
