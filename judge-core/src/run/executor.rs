@@ -11,6 +11,8 @@ pub struct Executor {
     pub additional_args: Vec<String>,
 }
 
+// Do not do logging or some other additional things which may use system calls
+// these will blocked by seccomp filter unexpectedly
 impl Executor {
     pub fn new(language: Language, path: PathBuf) -> Result<Self, JudgeCoreError> {
         if !path.exists() {
@@ -36,7 +38,6 @@ impl Executor {
             .iter()
             .map(|s| CString::new(s.as_bytes()))
             .collect::<Result<Vec<_>, _>>()?;
-        log::debug!("execve: {:?} {:?}", command, c_args);
         Ok(execve(
             &CString::new(command)?,
             c_args.as_slice(),

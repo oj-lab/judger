@@ -1,7 +1,7 @@
 # judger-rs
 
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/OJ-lab/judger/rust-check.yml)
-![Discord](https://img.shields.io/discord/916955582181822486)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/OJ-lab/judger/rust-check.yml?logo=github&label=Core%20Tests)
+![Discord](https://img.shields.io/discord/916955582181822486?label=Discord&color=blue&logo=discord&logoColor=white)
 
 Judger is supposed to be a simple **sandbox service** which works for online-judge systems.
 
@@ -20,19 +20,8 @@ We'll consider other platform, but in a lower priority.
 If you are not familiar with system stuff.
 Developing judger-rs in local computer can be dangerous.
 
-Github codespace is the currently the most perfered approach.
-When first setup the cloud machine, run `ENV_SETUP.bash` to get essentials,
-also install the recommended plugins provided in VSCode.
-
-## Run by admin
-
-`judge-core` build a sandbox environment by `seccomp`, so it's neccessary to run tests or examples by admin.
-You need to install **Rust** in root user.
-
-``` sh
-su
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
+Github codespace is the currently the most perfered approach,
+it will setup all the needed environment for you.
 
 ## Contribute
 
@@ -41,4 +30,3 @@ We have a guide in judger's [WIKI](https://github.com/OJ-lab/judger/wiki/Contrib
 ## Deeper Docs
 
 - [judge-core README](judge-core/README.md)
-- [judge-cli README](judge-cli/README.md)
