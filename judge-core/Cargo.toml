@@ -21,4 +21,4 @@ serde_yaml = "0.9"
 [dev-dependencies]
 # Need to lock the version of env_logger to 0.10.0
 # 0.11.0 will break the test currently
-env_logger = "0.10.0"
+env_logger = "0.11.0"
