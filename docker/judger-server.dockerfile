@@ -18,6 +18,7 @@ RUN curl https://rclone.org/install.sh | bash
 RUN mkdir /workspace
 WORKDIR /workspace
 COPY data/dev-problem-package /workspace/data/dev-problem-package
+RUN mkdir /workspace/data/rclone-problem-package
 
 ENV RUST_LOG=DEBUG
 EXPOSE 8000
