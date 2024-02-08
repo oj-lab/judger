@@ -10,7 +10,7 @@ RUN cargo build --bin judger-server --release
 
 FROM ubuntu:latest
 
-RUN apt update && apt install -y libseccomp-dev gcc g++
+RUN apt update && apt install -y libseccomp-dev gcc g++ curl
 COPY --from=build /usr/src/judger/target/release/judger-server /usr/local/bin/judger-server
 
 RUN curl https://rclone.org/install.sh | bash
