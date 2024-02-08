@@ -2,7 +2,7 @@
 
 In this section we provide two approaches to connect problem packages with judger.
 
-1. By accessing a local directory, 
+1. By accessing a local directory,
 which is more convenient when you can't not access OJ Lab's platform data collection.
 (Ex. you are using github codespaces or some other cloud IDE)
 2. By setting up a connection by rclone,
@@ -18,8 +18,8 @@ cp -i data/rclone-minio.conf.example data/rclone-minio.conf
 
 You will need to replace `YOUR_ACCESS_KEY` and `YOUR_SECRET_KEY`
 with your own access key and secret key
-(which can be generated in the minio web interface, 
-visit http://127.0.0.1:9001 if you are using oj-lab-platform's docker-compose).
+(which can be generated in the minio web interface,
+visit <http://127.0.0.1:9001> if you are using oj-lab-platform's docker-compose).
 
 Then you can run the following command to test if the configuration is correct.
 

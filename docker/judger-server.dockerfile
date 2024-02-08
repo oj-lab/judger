@@ -12,6 +12,9 @@ FROM ubuntu:latest
 
 RUN apt update && apt install -y libseccomp-dev gcc g++
 COPY --from=build /usr/src/judger/target/release/judger-server /usr/local/bin/judger-server
+
+RUN curl https://rclone.org/install.sh | bash
+
 RUN mkdir /workspace
 WORKDIR /workspace
 COPY data/dev-problem-package /workspace/data/dev-problem-package
