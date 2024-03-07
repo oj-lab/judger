@@ -148,6 +148,7 @@ fn run_judge(task: JudgeTask) -> Result<Vec<JudgeResultInfo>, ClientError> {
         src_path: runtime_path.clone().join(&src_file_name),
     });
     if new_builder_result.is_err() {
+        state::set_idle();
         return Err(ClientError::InternalError(anyhow::anyhow!(
             "Failed to new builder result: {:?}",
             new_builder_result.err()
