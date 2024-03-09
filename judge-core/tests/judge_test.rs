@@ -69,7 +69,7 @@ fn test_run_judge() {
         assert_eq!(result.verdict, JudgeVerdict::Accepted);
     } else {
         log::debug!("{:?}", result);
-        assert!(false)
+        unreachable!()
     }
 }
 
@@ -146,7 +146,7 @@ fn test_run_interact() {
         }
         Err(e) => {
             log::error!("meet error: {:?}", e);
-            assert!(false);
+            unreachable!()
         }
     }
 }
