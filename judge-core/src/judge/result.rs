@@ -44,10 +44,19 @@ pub fn get_max_mem(raw_info: &RawRunResultInfo) -> i64 {
 }
 
 pub fn check_user_result(
-    _config: &JudgeConfig,
+    config: &JudgeConfig,
     raw_info: &RawRunResultInfo,
 ) -> Option<JudgeVerdict> {
-    // TODO: If run_time exceeds the time limit, return TimeLimitExceeded
+    if let Some(time_limit) = config.runtime.rlimit_configs.get_cpu_limit_duration() {
+        let run_time = get_run_time(raw_info);
+        // run_time is a little bit shorter than time_limit
+        if run_time > time_limit {
+            log::debug!("User program run time: {:?}", run_time);
+            log::debug!("Time limit: {:?}", time_limit);
+            return Some(JudgeVerdict::TimeLimitExceeded);
+        }
+    }
+
     let exit_status = raw_info.exit_status;
     log::debug!("User program exit status: {}", exit_status);
     match exit_status {

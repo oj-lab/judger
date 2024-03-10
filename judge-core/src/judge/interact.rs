@@ -193,7 +193,7 @@ pub fn run_interact(
     log::debug!("Epoll finished!");
 
     if let Some(user_result) = option_user_result {
-        let option_user_verdict = check_user_result(&config, &user_result);
+        let option_user_verdict = check_user_result(config, &user_result);
         if let Some(verdict) = option_user_verdict {
             return Ok(Some(JudgeResultInfo {
                 verdict,

@@ -45,7 +45,7 @@ fn run_user(
     let user_time = get_run_time(&user_result);
     let max_mem = get_max_mem(&user_result);
     Ok((
-        check_user_result(&config, &user_result),
+        check_user_result(config, &user_result),
         user_time,
         max_mem,
         user_result.exit_status,
