@@ -3,6 +3,8 @@ use serde_derive::Serialize;
 use crate::run::sandbox::RawRunResultInfo;
 use std::{fmt, ops::Add, time::Duration};
 
+use super::JudgeConfig;
+
 #[derive(Debug, Serialize)]
 pub struct JudgeResultInfo {
     pub verdict: JudgeVerdict,
@@ -41,14 +43,24 @@ pub fn get_max_mem(raw_info: &RawRunResultInfo) -> i64 {
     rusage.max_rss
 }
 
-pub fn check_user_result(raw_info: &RawRunResultInfo) -> Option<JudgeVerdict> {
+pub fn check_user_result(
+    config: &JudgeConfig,
+    raw_info: &RawRunResultInfo,
+) -> Option<JudgeVerdict> {
+    if let Some(time_limit) = config.runtime.rlimit_configs.get_cpu_limit_duration() {
+        let run_time = get_run_time(raw_info);
+        if run_time > time_limit {
+            log::debug!("User program run time: {:?}", run_time);
+            log::debug!("Time limit: {:?}", time_limit);
+            return Some(JudgeVerdict::TimeLimitExceeded);
+        }
+    }
+
     let exit_status = raw_info.exit_status;
     log::debug!("User program exit status: {}", exit_status);
     match exit_status {
         0 => None,
-        11 => Some(JudgeVerdict::RuntimeError),
-        152 | 24 => Some(JudgeVerdict::TimeLimitExceeded),
-        _ => Some(JudgeVerdict::SystemError),
+        _ => Some(JudgeVerdict::RuntimeError),
     }
 }
 

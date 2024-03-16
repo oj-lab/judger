@@ -2,7 +2,7 @@ use super::sandbox::{RawRunResultInfo, Sandbox};
 use crate::error::JudgeCoreError;
 use nix::unistd::{fork, write, ForkResult};
 use serde_derive::{Deserialize, Serialize};
-use std::os::unix::io::RawFd;
+use std::os::{fd::BorrowedFd, unix::io::RawFd};
 
 pub struct ProcessListener {
     child_exit_fd: i32,
@@ -31,7 +31,9 @@ impl ProcessListener {
                 option_run_result,
             };
             let buf = serde_json::to_vec(&msg).expect("Serialize failed.");
-            write(self.child_exit_fd, &buf).unwrap();
+            // We should be really careful here
+            // not using OwnedFd here because it will close the fd
+            write(unsafe { BorrowedFd::borrow_raw(self.child_exit_fd) }, &buf).unwrap();
         }
     }
 

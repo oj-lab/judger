@@ -36,6 +36,11 @@ pub struct RlimitConfigs {
 }
 
 impl RlimitConfigs {
+    /// Load the rlimit configs to the current process.
+    ///
+    /// One thing should be noted is that `RLIMIT_CPU` is set to +1 second of the given value.
+    /// This is because rlimit will kills the process when CPU almost reaches the limit,
+    /// which can have a few milliseconds of deviation.
     pub fn load(&self) -> Result<(), JudgeCoreError> {
         if let Some(stack_limit) = self.stack_limit {
             log::debug!("Set stack limit: {:?}", stack_limit);
@@ -47,8 +52,13 @@ impl RlimitConfigs {
         }
         if let Some(cpu_limit) = self.cpu_limit {
             log::debug!("Set cpu limit: {:?}", cpu_limit);
-            setrlimit(RLIMIT_CPU, cpu_limit.0, cpu_limit.1)?;
+            setrlimit(RLIMIT_CPU, cpu_limit.0 + 1, cpu_limit.1 + 1)?;
         }
         Ok(())
+    }
+
+    pub fn get_cpu_limit_duration(&self) -> Option<std::time::Duration> {
+        self.cpu_limit
+            .map(|(soft, _)| std::time::Duration::from_secs(soft))
     }
 }
