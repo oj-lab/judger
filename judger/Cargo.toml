@@ -44,11 +44,3 @@ anyhow = "1"
 thiserror = "1"
 
 uuid = { version = "1.4", features = ["serde", "v4"] }
-
-[[bin]]
-name ="judger-cli"
-path ="src/cli/main.rs"
-
-[[bin]]
-name ="judger-server"
-path ="src/server/main.rs"

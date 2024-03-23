@@ -15,6 +15,9 @@ pub struct JudgeServerOpt {
     #[structopt(long, default_value = "data/dev-problem-package")]
     pub problem_package_dir: PathBuf,
 
+    #[structopt(long, default_value = "data/rclone.conf")]
+    pub rclone_config: PathBuf,
+
     #[structopt(env = "BASE_URL", default_value = "http://localhost:8080/api/v1/judge")]
     pub base_url: String,
 

@@ -2,7 +2,6 @@
 
 use actix_web::{HttpResponse, ResponseError};
 use judge_core::error::JudgeCoreError;
-use judger::service::error::JudgeServiceError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ServiceError {
@@ -23,7 +22,6 @@ pub enum ServiceError {
 #[derive(Debug)]
 pub enum ClientError {
     InternalError(anyhow::Error),
-    PackageError(JudgeServiceError),
 }
 
 #[derive(Serialize)]

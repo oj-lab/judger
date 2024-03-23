@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use crate::{error::ServiceError, service::state};
+use crate::{error::ServiceError, handler::state};
 use actix_web::{post, web, HttpResponse};
 
 use judge_core::{

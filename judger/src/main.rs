@@ -1,7 +1,8 @@
-mod client;
+mod agent;
 mod environment;
 mod error;
-mod service;
+mod handler;
+mod worker;
 
 #[macro_use]
 extern crate serde_derive;
@@ -23,8 +24,30 @@ async fn main() -> std::io::Result<()> {
     //     }
     // });
 
+    let new_worker_result = worker::JudgeWorker::new(
+        opt.base_url,
+        opt.interval as u64,
+        opt.rclone_config,
+        opt.problem_package_dir.clone(),
+    );
+
+    let worker = match new_worker_result {
+        Ok(maybe_worker) => {
+            if let Some(worker) = maybe_worker {
+                worker
+            } else {
+                log::error!("Failed to create worker");
+                return Ok(());
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to create worker: {:?}", e);
+            return Ok(());
+        }
+    };
+
     tokio::spawn(async move {
-        client::run_client(opt.base_url, opt.interval as u64).await;
+        worker.run().await;
     });
 
     let port = opt.port;
@@ -33,11 +56,11 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(actix_web::middleware::Logger::default())
             .app_data(Data::new(opt.problem_package_dir.clone()))
-            .configure(service::route)
+            .configure(handler::route)
             .service(
                 utoipa_swagger_ui::SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                     utoipa_swagger_ui::Url::new("api", "/api-docs/openapi.json"),
-                    service::ApiDoc::openapi(),
+                    handler::ApiDoc::openapi(),
                 )]),
             )
     })
