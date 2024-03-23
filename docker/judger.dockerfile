@@ -5,20 +5,20 @@ COPY judger /usr/src/judger
 WORKDIR /usr/src/judger
 
 RUN apt update && apt install -y libseccomp-dev gcc
-RUN cargo build --bin judger-server --release
+RUN cargo build --bin judger --release
 
 
 FROM ubuntu:latest
 
 RUN apt update && apt install -y libseccomp-dev gcc g++ curl unzip
-COPY --from=build /usr/src/judger/target/release/judger-server /usr/local/bin/judger-server
+COPY --from=build /usr/src/judger/target/release/judger /usr/local/bin/judger
 
 RUN curl https://rclone.org/install.sh | bash
 
 RUN mkdir /workspace
 WORKDIR /workspace
-COPY data/dev-problem-package /workspace/data/dev-problem-package
-RUN mkdir /workspace/data/rclone-problem-package
+COPY data/default-rclone.conf /workspace/data/default-rclone.conf
+RUN mkdir /workspace/data/problem-package
 
 ENV RUST_LOG=DEBUG
 EXPOSE 8000
