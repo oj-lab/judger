@@ -12,7 +12,7 @@ judge-core = { path = "../judge-core" }
 clap = { version = "4.0", features = ["derive"] }
 
 # Client
-reqwest = { version = "0.11.23", features = ["json"] }
+reqwest = { version = "0.12.1", features = ["json"] }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
