@@ -175,7 +175,7 @@ impl Compiler {
         } else {
             let error_output = String::from_utf8_lossy(&output.stderr).to_string();
             log::error!("Compile error: {}", error_output);
-            Err(JudgeCoreError::AnyhowError(anyhow!(error_output)))
+            Err(JudgeCoreError::CompileError(error_output))
         }
     }
 }

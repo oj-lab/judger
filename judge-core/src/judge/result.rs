@@ -5,7 +5,7 @@ use std::{fmt, ops::Add, time::Duration};
 
 use super::JudgeConfig;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct JudgeResultInfo {
     pub verdict: JudgeVerdict,
     pub time_usage: Duration,
@@ -14,7 +14,7 @@ pub struct JudgeResultInfo {
     pub checker_exit_status: i32,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize, Clone)]
 pub enum JudgeVerdict {
     Accepted,
     WrongAnswer,
@@ -23,6 +23,7 @@ pub enum JudgeVerdict {
     RuntimeError,
     PartialScore,
     SystemError,
+    CompileError,
 }
 
 impl fmt::Display for JudgeVerdict {
