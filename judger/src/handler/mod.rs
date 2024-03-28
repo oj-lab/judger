@@ -1,5 +1,4 @@
 mod greet;
-mod judge;
 pub mod state;
 
 use actix_web::web;
@@ -15,7 +14,6 @@ pub struct ApiDoc;
 pub fn route(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/v1")
-            .configure(judge::route)
             .service(greet::greet)
             .configure(state::route),
     )
@@ -24,10 +22,6 @@ pub fn route(cfg: &mut web::ServiceConfig) {
             (
                 utoipa_swagger_ui::Url::new("root", "/api-docs/openapi.json"),
                 ApiDoc::openapi(),
-            ),
-            (
-                utoipa_swagger_ui::Url::new("judge", "/api-docs/judge.json"),
-                judge::JudgeApiDoc::openapi(),
             ),
             (
                 utoipa_swagger_ui::Url::new("state", "/api-docs/state.json"),

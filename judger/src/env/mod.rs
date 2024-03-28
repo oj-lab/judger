@@ -3,8 +3,9 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug, Clone)]
-#[structopt(name = "judge-server")]
+#[structopt(name = "judger")]
 pub struct JudgeServerOpt {
+    /// For loading Opt from .env file
     #[structopt(long)]
     pub env_path: Option<String>,
 
@@ -12,14 +13,20 @@ pub struct JudgeServerOpt {
     #[structopt(env = "PORT", default_value = "8080")]
     pub port: u16,
 
-    #[structopt(long, default_value = "data/dev-problem-package")]
+    // TODO: make rclone optional
+    #[structopt(long, default_value = "data/default-rclone.conf")]
+    pub rclone_config: PathBuf,
+    #[structopt(long, default_value = "oj-lab-problem-package")]
+    pub problem_package_bucket: String,
+    /// Where to store problem package
+    #[structopt(long, default_value = "data/problem-package")]
     pub problem_package_dir: PathBuf,
 
-    #[structopt(env = "BASE_URL", default_value = "http://localhost:8080/api/v1/judge")]
-    pub base_url: String,
-
-    #[structopt(env = "INTERVAL", default_value = "10")]
-    pub interval: i32,
+    #[structopt(env = "PLATFORM_URI", default_value = "http://localhost:8080/")]
+    pub platform_uri: String,
+    /// Interval to fetch task in seconds
+    #[structopt(env = "FETCH_TASK_INTERVAL", default_value = "10")]
+    pub fetch_task_interval: u64,
 }
 
 pub fn load_option() -> JudgeServerOpt {
