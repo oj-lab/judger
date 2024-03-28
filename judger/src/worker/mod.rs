@@ -2,7 +2,9 @@ use crate::agent::platform::{JudgeTask, PlatformClient};
 use crate::agent::rclone::RcloneClient;
 use crate::handler::state;
 use anyhow::Error;
+use judge_core::error::JudgeCoreError;
 use judge_core::judge;
+use judge_core::judge::result::JudgeVerdict;
 use judge_core::{
     judge::builder::{JudgeBuilder, JudgeBuilderInput},
     judge::result::JudgeResultInfo,
@@ -109,9 +111,21 @@ impl JudgeWorker {
         })
         .map_err(|e| {
             state::set_idle();
-            anyhow::anyhow!("Failed to new builder result: {:?}", e)
+            if let JudgeCoreError::CompileError(_) = e {
+                return Ok(vec![
+                    JudgeResultInfo {
+                        verdict: JudgeVerdict::CompileError,
+                        time_usage: Duration::new(0, 0),
+                        memory_usage_bytes: -1,
+                        exit_status: -1,
+                        checker_exit_status: -1,
+                    };
+                    1
+                ]);
+            }
+            Err(anyhow::anyhow!("Failed to new builder result: {:?}", e))
         });
-        let builder = new_builder_result?;
+        let builder = new_builder_result.expect("builder creater error");
         log::debug!("Builder created: {:?}", builder);
         let mut results: Vec<JudgeResultInfo> = vec![];
         for idx in 0..builder.testdata_configs.len() {

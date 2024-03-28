@@ -14,6 +14,7 @@ pub enum JudgeCoreError {
     SerdeJsonError(serde_json::Error),
     AnyhowError(anyhow::Error),
     FromUtf8Error(FromUtf8Error),
+    CompileError(String),
 }
 
 impl From<Errno> for JudgeCoreError {
