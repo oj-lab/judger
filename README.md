@@ -2,7 +2,7 @@
 
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/OJ-lab/judger/rust-check.yml?logo=github&label=Core%20Tests)
 [![Discord](https://img.shields.io/discord/916955582181822486?label=Discord&color=blue&logo=discord&logoColor=white)](https://discord.gg/vh8NCgdp8J)
-![Static Badge](https://img.shields.io/badge/Codespace_Supported-000000?style=flat&logo=github)
+![Codespace Supported](https://img.shields.io/badge/Codespace_Supported-000000?style=flat&logo=github)
 
 Judger is supposed to be a simple **sandbox service** which works for online-judge systems.
 
