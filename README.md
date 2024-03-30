@@ -1,6 +1,6 @@
 # judger-rs
 
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/OJ-lab/judger/rust-check.yml?logo=github&label=Core%20Tests)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/OJ-lab/judger/rust-check.yml?logo=github&label=Tests)
 [![Discord](https://img.shields.io/discord/916955582181822486?label=Discord&color=blue&logo=discord&logoColor=white)](https://discord.gg/vh8NCgdp8J)
 ![Codespace Supported](https://img.shields.io/badge/Codespace_Supported-000000?style=flat&logo=github)
 
