@@ -54,7 +54,10 @@ async fn pick_task(client: &HttpClient) -> Result<JudgeTask, anyhow::Error> {
 
     match response.status() {
         reqwest::StatusCode::OK => Ok(response.json::<PickTaskResponse>().await?.task),
-        _ => Err(anyhow::anyhow!("Queue is empty")),
+        _ => {
+            log::error!("Failed to pick task: {:?}", response);
+            Err(anyhow::anyhow!("Queue is empty"))
+        }
     }
 }
 

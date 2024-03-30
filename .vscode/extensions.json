@@ -2,6 +2,7 @@
   "recommendations": [
     "tamasfe.even-better-toml",
     "rust-lang.rust-analyzer",
-    "mads-hartmann.bash-ide-vscode"
+    "mads-hartmann.bash-ide-vscode",
+    "mikestead.dotenv"
   ]
 }

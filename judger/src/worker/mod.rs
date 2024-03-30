@@ -18,27 +18,30 @@ use tokio::time::interval;
 pub struct JudgeWorker {
     platform_client: PlatformClient,
     interval_sec: u64,
-    rclone_client: RcloneClient,
+    rclone_client: Option<RcloneClient>,
     package_bucket: String,
     package_dir: PathBuf,
 }
 
 impl JudgeWorker {
     pub fn new(
-        platform_uri: String,
+        platform_client: PlatformClient,
+        maybe_rclone_client: Option<RcloneClient>,
         interval_sec: u64,
-        rclone_config: PathBuf,
         package_bucket: String,
         package_dir: PathBuf,
     ) -> Result<Option<Self>, Error> {
-        let platform_client = PlatformClient::new(platform_uri);
-        let rclone_client = RcloneClient::new(rclone_config);
-        if !rclone_client.is_avaliable() {
-            Err(anyhow::anyhow!("Rclone is not avaliable"))?;
+        if let Some(rclone_client) = maybe_rclone_client.as_ref() {
+            if rclone_client.is_avaliable() {
+                rclone_client.sync_bucket(&package_bucket, &package_dir)?;
+            } else {
+                log::error!("Rclone client is not available");
+                return Err(anyhow::anyhow!("Rclone client is not available"));
+            }
         }
         Ok(Some(Self {
             platform_client,
-            rclone_client,
+            rclone_client: maybe_rclone_client,
             interval_sec,
             package_bucket,
             package_dir,
@@ -46,10 +49,7 @@ impl JudgeWorker {
     }
 
     pub async fn run(&self) {
-        let _ = self
-            .rclone_client
-            .sync_bucket(&self.package_bucket, &self.package_dir)
-            .map_err(|e| log::debug!("Failed to sync bucket: {:?}", e));
+        log::info!("judge task worker started");
 
         let mut interval = interval(Duration::from_secs(self.interval_sec));
         loop {
@@ -84,8 +84,10 @@ impl JudgeWorker {
     }
 
     fn run_judge(&self, task: &JudgeTask) -> Result<Vec<JudgeResultInfo>, anyhow::Error> {
-        self.rclone_client
-            .sync_bucket(&self.package_bucket, &self.package_dir)?;
+        if let Some(rclone_client) = self.rclone_client.as_ref() {
+            rclone_client.sync_bucket(&self.package_bucket, &self.package_dir)?;
+        }
+
         state::set_busy()?;
         let problem_package_dir = self.package_dir.join(&task.problem_slug);
 

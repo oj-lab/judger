@@ -1,7 +1,4 @@
+.github/
 .vscode/
-tmp/
-test-collection/
+.devcontainer/
 target/
-rclone/
-postman/
-docker/

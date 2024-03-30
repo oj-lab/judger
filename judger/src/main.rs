@@ -1,7 +1,7 @@
 mod agent;
-mod env;
 mod error;
 mod handler;
+mod option;
 mod worker;
 
 #[macro_use]
@@ -9,19 +9,30 @@ extern crate serde_derive;
 extern crate lazy_static;
 
 use actix_web::{web::Data, App, HttpServer};
+use agent::platform;
 use worker::JudgeWorker;
 
-#[actix_web::main] // or #[tokio::main]
+#[actix_web::main]
+// The button provided by rust-analyzer will not work as expected here
+// Use RUN AND DEBUG feature in VSCode
 async fn main() -> std::io::Result<()> {
-    let opt = env::load_option();
-    env::setup_logger();
+    let opt = option::load_option();
 
     // TODO: Send heartbeat here to a remote host
 
+    let platform_client = platform::PlatformClient::new(opt.platform_uri.clone());
+    let maybe_rclone_client = if opt.enable_rclone {
+        Some(agent::rclone::RcloneClient::new(
+            opt.rclone_config_path.clone(),
+        ))
+    } else {
+        None
+    };
+
     let worker = match JudgeWorker::new(
-        opt.platform_uri,
+        platform_client,
+        maybe_rclone_client,
         opt.fetch_task_interval,
-        opt.rclone_config,
         opt.problem_package_bucket.clone(),
         opt.problem_package_dir.clone(),
     ) {
