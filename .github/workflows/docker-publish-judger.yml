@@ -70,7 +70,7 @@ jobs:
         id: build-and-push
         uses: docker/build-push-action@v5
         with:
-          file: docker/judger.dockerfile
+          file: Dockerfile
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}

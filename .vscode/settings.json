@@ -1,14 +1,6 @@
 {
   "material-icon-theme.folders.associations": {
     "judge-core": "core",
-    "judge-cli": "command",
-    "judge-service": "helper",
-    "judge-server": "server",
-    "postman": "api"
-  },
-  "rust-analyzer.linkedProjects": [
-    "./judger/Cargo.toml",
-    "./judger/Cargo.toml",
-    "./judger/Cargo.toml"
-  ]
+    "judger": "app"
+  }
 }
