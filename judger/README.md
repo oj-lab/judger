@@ -1,27 +1,13 @@
-# Judger
+# Judger Application
 
-## Cli
+Judge server & cmd-line application built with `judger-core`.
+the two mode are base on the same core logic, cmd-line mode is more convenient for debugging and testing.
 
-This will be the easiest and closest way to try out the basic feature of Judger.
+In server mode, it fetches the judge tasks from [oj-lab-platform](https://github.com/OJ-lab/oj-lab-platform)
+and reports the result back.
 
-### Develop Usage
+In cmd-line mode, by providing the necessary arguments, it can run the code in a sandboxed environment.
 
-To run from the source code, try:
+## How to use
 
-``` shell
-cargo run --bin judger-cli -- [COMMAND]
-```
-
-``` shell
-cargo run --bin judger-cli -- batch-judge --help
-```
-
-## Server
-
-### How to run
-
-`cargo run --bin judger-server -- --env-path ./judger/src/server/environment/.env.development`
-
-### How to visit OpenAPI
-
-visit `{HOST}/swagger-ui/`
+Run `cargo run --bin judger` to get help.
