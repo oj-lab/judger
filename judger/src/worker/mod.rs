@@ -1,7 +1,8 @@
-use crate::agent::platform::{JudgeTask, PlatformClient};
+use crate::agent::platform::PlatformClient;
 use crate::agent::rclone::RcloneClient;
 use crate::handler::state;
 use anyhow::Error;
+use judge_core::compiler::Language;
 use judge_core::error::JudgeCoreError;
 use judge_core::judge;
 use judge_core::judge::result::JudgeVerdict;
@@ -16,21 +17,21 @@ use std::{fs, path::PathBuf};
 use tokio::time::interval;
 
 pub struct JudgeWorker {
-    platform_client: PlatformClient,
+    maybe_platform_client: Option<PlatformClient>,
     interval_sec: u64,
-    rclone_client: Option<RcloneClient>,
+    maybe_rclone_client: Option<RcloneClient>,
     package_bucket: String,
     package_dir: PathBuf,
 }
 
 impl JudgeWorker {
     pub fn new(
-        platform_client: PlatformClient,
+        maybe_platform_client: Option<PlatformClient>,
         maybe_rclone_client: Option<RcloneClient>,
         interval_sec: u64,
         package_bucket: String,
         package_dir: PathBuf,
-    ) -> Result<Option<Self>, Error> {
+    ) -> Result<Self, Error> {
         if let Some(rclone_client) = maybe_rclone_client.as_ref() {
             if rclone_client.is_avaliable() {
                 rclone_client.sync_bucket(&package_bucket, &package_dir)?;
@@ -39,28 +40,37 @@ impl JudgeWorker {
                 return Err(anyhow::anyhow!("Rclone client is not available"));
             }
         }
-        Ok(Some(Self {
-            platform_client,
-            rclone_client: maybe_rclone_client,
+        Ok(Self {
+            maybe_platform_client,
+            maybe_rclone_client,
             interval_sec,
             package_bucket,
             package_dir,
-        }))
+        })
     }
 
     pub async fn run(&self) {
         log::info!("judge task worker started");
 
+        if self.maybe_platform_client.is_none() {
+            log::error!("Platform client is not available");
+            return;
+        }
+        let platform_client = self.maybe_platform_client.as_ref().unwrap();
+
         let mut interval = interval(Duration::from_secs(self.interval_sec));
         loop {
             interval.tick().await;
-            match self.platform_client.pick_task().await {
+            match platform_client.pick_task().await {
                 Ok(task) => {
                     log::info!("Received task: {:?}", task);
-                    match self.run_judge(&task) {
+                    match self.run_judge(
+                        task.problem_slug.clone(),
+                        task.language,
+                        task.code.clone(),
+                    ) {
                         Ok(results) => {
-                            let report_response = self
-                                .platform_client
+                            let report_response = platform_client
                                 .report_task(&task.redis_stream_id.clone(), results)
                                 .await;
                             if report_response.is_err() {
@@ -83,23 +93,28 @@ impl JudgeWorker {
         }
     }
 
-    fn run_judge(&self, task: &JudgeTask) -> Result<Vec<JudgeResultInfo>, anyhow::Error> {
-        if let Some(rclone_client) = self.rclone_client.as_ref() {
+    pub fn run_judge(
+        &self,
+        problem_slug: String,
+        language: Language,
+        code: String,
+    ) -> Result<Vec<JudgeResultInfo>, anyhow::Error> {
+        if let Some(rclone_client) = self.maybe_rclone_client.as_ref() {
             rclone_client.sync_bucket(&self.package_bucket, &self.package_dir)?;
         }
 
         state::set_busy()?;
-        let problem_package_dir = self.package_dir.join(&task.problem_slug);
+        let problem_package_dir = self.package_dir.join(problem_slug);
 
         let uuid = uuid::Uuid::new_v4();
         let runtime_path = PathBuf::from("/tmp").join(uuid.to_string());
-        let src_file_name = format!("src.{}", task.language.get_extension());
+        let src_file_name = format!("src.{}", language.get_extension());
         log::debug!("runtime_path: {:?}", runtime_path);
         fs::create_dir_all(runtime_path.clone()).map_err(|e| {
             log::debug!("Failed to create runtime dir: {:?}", e);
             anyhow::anyhow!("Failed to create runtime dir")
         })?;
-        fs::write(runtime_path.clone().join(&src_file_name), task.code.clone()).map_err(|e| {
+        fs::write(runtime_path.clone().join(&src_file_name), code.clone()).map_err(|e| {
             log::debug!("Failed to write src file: {:?}", e);
             anyhow::anyhow!("Failed to write src file")
         })?;
@@ -108,7 +123,7 @@ impl JudgeWorker {
             package_type: PackageType::ICPC,
             package_path: problem_package_dir,
             runtime_path: runtime_path.clone(),
-            src_language: task.language,
+            src_language: language,
             src_path: runtime_path.clone().join(&src_file_name),
         })
         .map_err(|e| {

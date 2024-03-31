@@ -5,11 +5,37 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Judger (Debug)",
+      "name": "Judger Serve (Debug)",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/target/debug/judger",
-      "args": [],
+      "args": [
+        "serve"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/judger/workdirs/development",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "preLaunchTask": "build judger",
+      "setupCommands": [
+        {
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    },
+    {
+      "name": "Judger Judge (Debug)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/debug/judger",
+      "args": [
+        "judge",
+        "--problem-slug", "hello_world",
+        "--language", "cpp",
+        "--src-path", "${workspaceFolder}/judger/workdirs/development/problem-package/hello_world/ans.cpp",
+      ],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/judger/workdirs/development",
       "environment": [],

@@ -25,7 +25,7 @@ impl PlatformClient {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct JudgeTask {
     #[serde(rename = "submissionUID")]
     pub submission_uid: String,
@@ -46,7 +46,7 @@ struct PickTaskResponse {
 }
 
 async fn pick_task(client: &HttpClient) -> Result<JudgeTask, anyhow::Error> {
-    let pick_url = "/api/v1/judge/task/pick";
+    let pick_url = "api/v1/judge/task/pick";
     let body = PickTaskBody {
         consumer: "".to_string(),
     };
@@ -77,7 +77,7 @@ async fn report_task(
     stream_id: &str,
     results: Vec<JudgeResultInfo>,
 ) -> Result<(), anyhow::Error> {
-    let report_url = "/api/v1/judge/task/report";
+    let report_url = "api/v1/judge/task/report";
     let body = ReportTaskBody {
         consumer: "".to_string(),
         stream_id: stream_id.to_owned(),

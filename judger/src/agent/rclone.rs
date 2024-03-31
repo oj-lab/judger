@@ -40,9 +40,7 @@ impl RcloneClient {
             .arg(format!("minio:{}", bucket_name))
             .arg(format!("{}", target_dir.to_string_lossy()));
         log::debug!("Syncing bucket with command: {:?}", command);
-        let status = command
-            .status()
-            .expect("Failed to rclone");
+        let status = command.status().expect("Failed to rclone");
         if status.success() {
             Ok(())
         } else {
