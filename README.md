@@ -14,7 +14,7 @@ So you might need to check whether you are using the supported system from the m
 
 ## Development
 
-Judger should works fine in VSCode with all recommended extensions installed.
+> 🌟 Accept VSCode extension recommandation for complete experience.
 
 ### Before you start
 
