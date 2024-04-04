@@ -17,7 +17,7 @@ RUN curl https://rclone.org/install.sh | bash
 
 RUN mkdir /workdir
 RUN mkdir /workdir/problem-package
-COPY judger/workdirs/docker/rclone.conf /workdir/rclone.conf
+COPY judger/workdirs/docker/ /workdir
 
 WORKDIR /workdir
 ENV RUST_LOG=DEBUG
