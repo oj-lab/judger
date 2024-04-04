@@ -22,4 +22,4 @@ COPY judger/workdirs/docker/rclone.conf /workdir/rclone.conf
 WORKDIR /workdir
 ENV RUST_LOG=DEBUG
 EXPOSE 8000
-CMD [ "judger" ]
+CMD [ "judger", "serve" ]
