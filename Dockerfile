@@ -21,5 +21,6 @@ COPY judger/workdirs/docker/rclone.conf /workdir/rclone.conf
 
 WORKDIR /workdir
 ENV RUST_LOG=DEBUG
+ENV PLATFORM_URI=http://host.docker.internal:8080/
 EXPOSE 8000
 CMD [ "judger", "serve" ]
