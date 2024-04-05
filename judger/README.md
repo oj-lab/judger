@@ -8,6 +8,10 @@ and reports the result back.
 
 In cmd-line mode, by providing the necessary arguments, it can run the code in a sandboxed environment.
 
+## Development
+
+Use VSCode Run/Debug configuration to run the application.
+
 ## How to use
 
 Run `cargo run --bin judger` to get help.

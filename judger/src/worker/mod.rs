@@ -125,9 +125,8 @@ impl JudgeWorker {
             runtime_path: runtime_path.clone(),
             src_language: language,
             src_path: runtime_path.clone().join(&src_file_name),
-        })
-        .map_err(|e| {
-            state::set_idle();
+        });
+        if let Err(e) = new_builder_result {
             if let JudgeCoreError::CompileError(_) = e {
                 return Ok(vec![
                     JudgeResultInfo {
@@ -140,8 +139,8 @@ impl JudgeWorker {
                     1
                 ]);
             }
-            Err(anyhow::anyhow!("Failed to new builder result: {:?}", e))
-        });
+            return Err(anyhow::anyhow!("Failed to create builder: {:?}", e));
+        }
         let builder = new_builder_result.expect("builder creater error");
         log::debug!("Builder created: {:?}", builder);
         let mut results: Vec<JudgeResultInfo> = vec![];
