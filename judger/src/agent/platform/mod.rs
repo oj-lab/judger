@@ -12,7 +12,7 @@ impl PlatformClient {
         }
     }
 
-    pub async fn pick_task(&self) -> Result<JudgeTask, anyhow::Error> {
+    pub async fn pick_task(&self) -> Result<Option<JudgeTask>, anyhow::Error> {
         pick_task(&self.client).await
     }
 
@@ -45,7 +45,7 @@ struct PickTaskResponse {
     task: JudgeTask,
 }
 
-async fn pick_task(client: &HttpClient) -> Result<JudgeTask, anyhow::Error> {
+async fn pick_task(client: &HttpClient) -> Result<Option<JudgeTask>, anyhow::Error> {
     let pick_url = "api/v1/judge/task/pick";
     let body = PickTaskBody {
         consumer: "".to_string(),
@@ -53,10 +53,14 @@ async fn pick_task(client: &HttpClient) -> Result<JudgeTask, anyhow::Error> {
     let response = client.post(pick_url.to_string()).json(&body).send().await?;
 
     match response.status() {
-        reqwest::StatusCode::OK => Ok(response.json::<PickTaskResponse>().await?.task),
+        reqwest::StatusCode::OK => Ok(Some(response.json::<PickTaskResponse>().await?.task)),
+        reqwest::StatusCode::NO_CONTENT => Ok(None),
         _ => {
             log::error!("Failed to pick task: {:?}", response);
-            Err(anyhow::anyhow!("Queue is empty"))
+            Err(anyhow::anyhow!(format!(
+                "Failed to pick task: {:?}",
+                response
+            )))
         }
     }
 }

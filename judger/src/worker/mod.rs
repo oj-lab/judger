@@ -62,7 +62,11 @@ impl JudgeWorker {
         loop {
             interval.tick().await;
             match platform_client.pick_task().await {
-                Ok(task) => {
+                Ok(maybe_task) => {
+                    if maybe_task.is_none() {
+                        continue;
+                    }
+                    let task = maybe_task.unwrap();
                     log::info!("Received task: {:?}", task);
                     match self.run_judge(
                         task.problem_slug.clone(),
