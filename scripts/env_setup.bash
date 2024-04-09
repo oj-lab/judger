@@ -8,7 +8,7 @@ if [ -x "$(command -v apt)" ]; then
         echo 'Updating apt...'
         sudo apt update
     fi
-    sudo apt install -y libseccomp-dev gcc curl pkg-config libssl-dev cmake
+    sudo apt install -y libseccomp-dev gcc curl pkg-config libssl-dev cmake gdb
 fi
 
 if [ ! -d "scripts/thirdparty" ]; then
