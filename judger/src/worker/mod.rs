@@ -131,6 +131,7 @@ impl JudgeWorker {
             src_path: runtime_path.clone().join(&src_file_name),
         });
         if let Err(e) = new_builder_result {
+            state::set_idle();
             if let JudgeCoreError::CompileError(_) = e {
                 return Ok(vec![
                     JudgeResultInfo {
