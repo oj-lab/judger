@@ -61,50 +61,111 @@ impl JudgeWorker {
         let mut interval = interval(Duration::from_secs(self.interval_sec));
         loop {
             interval.tick().await;
-            match platform_client.pick_task().await {
+            match platform_client.pick_judge_task().await {
                 Ok(maybe_task) => {
                     if maybe_task.is_none() {
                         continue;
                     }
                     let task = maybe_task.unwrap();
                     log::info!("Received task: {:?}", task);
-                    match self.run_judge(
+
+                    // TODO: handle failure for set_busy here & return the task to the queue
+                    let _ = state::set_busy();
+
+                    let prepare_result = self.prepare_judge(
                         task.problem_slug.clone(),
                         task.language,
                         task.code.clone(),
-                    ) {
-                        Ok(results) => {
-                            let report_response = platform_client
-                                .report_task(&task.redis_stream_id.clone(), results)
-                                .await;
-                            if report_response.is_err() {
-                                log::debug!(
-                                    "Report failed with error: {:?}",
-                                    report_response.err()
-                                );
-                                return;
-                            }
-                            log::info!("judge {:?} report success", task.judge_uid.clone());
+                    );
+                    if let Err(e) = prepare_result {
+                        log::debug!("Failed to prepare judge: {:?}", e);
+                        let mut verdict = JudgeVerdict::SystemError;
+                        if let JudgeCoreError::CompileError(_) = e {
+                            verdict = JudgeVerdict::CompileError;
                         }
-                        Err(e) => log::info!("Error judge task: {:?}", e),
+                        let _ = platform_client
+                            .report_judge_task(&task.redis_stream_id.clone(), verdict)
+                            .await
+                            .map_err(|e| {
+                                log::debug!("Failed to report judge task: {:?}", e);
+                            });
+                        continue;
                     }
+                    let judge: JudgeBuilder = prepare_result.unwrap();
+                    let _ = platform_client
+                        .report_judge_result_count(&task.judge_uid, judge.testdata_configs.len())
+                        .await
+                        .map_err(|e| {
+                            log::warn!("Failed to report judge result count: {:?}", e);
+                        });
+
+                    let mut verdict = JudgeVerdict::Accepted;
+                    for idx in 0..judge.testdata_configs.len() {
+                        let judge_config = JudgeConfig {
+                            test_data: judge.testdata_configs[idx].clone(),
+                            program: judge.program_config.clone(),
+                            checker: judge.checker_config.clone(),
+                            runtime: judge.runtime_config.clone(),
+                        };
+
+                        let judge_result = self.run_judge(judge_config);
+                        let mut result = JudgeResultInfo {
+                            verdict: JudgeVerdict::SystemError,
+                            time_usage: Duration::from_secs(0),
+                            memory_usage_bytes: 0,
+                            exit_status: -1,
+                            checker_exit_status: -1,
+                        };
+                        match judge_result {
+                            Ok(r) => {
+                                result = r;
+                            }
+                            Err(e) => {
+                                log::debug!("Failed to run judge: {:?}", e);
+                            }
+                        }
+
+                        let _ = platform_client
+                            .report_judge_result(
+                                &task.judge_uid,
+                                result.verdict.clone(),
+                                result.time_usage.as_millis() as usize,
+                                result.memory_usage_bytes as usize,
+                            )
+                            .await
+                            .map_err(|e| {
+                                log::warn!("Failed to report judge result count: {:?}", e);
+                            });
+                        if result.verdict != JudgeVerdict::Accepted {
+                            verdict = result.verdict;
+                            break;
+                        }
+                    }
+
+                    let _ = platform_client
+                        .report_judge_task(&task.redis_stream_id.clone(), verdict)
+                        .await
+                        .map_err(|e| {
+                            log::debug!("Failed to report judge task: {:?}", e);
+                        });
+
+                    state::set_idle()
                 }
                 Err(e) => log::debug!("Error sending request: {:?}", e),
             }
         }
     }
 
-    pub fn run_judge(
+    pub fn prepare_judge(
         &self,
         problem_slug: String,
         language: Language,
         code: String,
-    ) -> Result<Vec<JudgeResultInfo>, anyhow::Error> {
+    ) -> Result<JudgeBuilder, JudgeCoreError> {
         if let Some(rclone_client) = self.maybe_rclone_client.as_ref() {
             rclone_client.sync_bucket(&self.package_bucket, &self.package_dir)?;
         }
 
-        state::set_busy()?;
         let problem_package_dir = self.package_dir.join(problem_slug);
 
         let uuid = uuid::Uuid::new_v4();
@@ -120,49 +181,19 @@ impl JudgeWorker {
             anyhow::anyhow!("Failed to write src file")
         })?;
 
-        let new_builder_result = JudgeBuilder::new(JudgeBuilderInput {
+        let builder = JudgeBuilder::new(JudgeBuilderInput {
             package_type: PackageType::ICPC,
             package_path: problem_package_dir,
             runtime_path: runtime_path.clone(),
             src_language: language,
             src_path: runtime_path.clone().join(&src_file_name),
-        });
-        if let Err(e) = new_builder_result {
-            state::set_idle();
-            if let JudgeCoreError::CompileError(_) = e {
-                return Ok(vec![
-                    JudgeResultInfo {
-                        verdict: JudgeVerdict::CompileError,
-                        time_usage: Duration::new(0, 0),
-                        memory_usage_bytes: -1,
-                        exit_status: -1,
-                        checker_exit_status: -1,
-                    };
-                    1
-                ]);
-            }
-            return Err(anyhow::anyhow!("Failed to create builder: {:?}", e));
-        }
-        let builder = new_builder_result.expect("builder creater error");
+        })?;
         log::debug!("Builder created: {:?}", builder);
-        let mut results: Vec<JudgeResultInfo> = vec![];
-        for idx in 0..builder.testdata_configs.len() {
-            let judge_config = JudgeConfig {
-                test_data: builder.testdata_configs[idx].clone(),
-                program: builder.program_config.clone(),
-                checker: builder.checker_config.clone(),
-                runtime: builder.runtime_config.clone(),
-            };
-            let result = judge::common::run_judge(&judge_config).map_err(|e| {
-                state::set_idle();
-                anyhow::anyhow!("Failed to run judge: {:?}", e)
-            })?;
-            log::debug!("Judge result: {:?}", result);
-            results.push(result);
-        }
+        Ok(builder)
+    }
 
-        log::debug!("Judge finished");
-        state::set_idle();
-        Ok(results)
+    pub fn run_judge(&self, judge_config: JudgeConfig) -> Result<JudgeResultInfo, anyhow::Error> {
+        judge::common::run_judge(&judge_config)
+            .map_err(|e| anyhow::anyhow!("Failed to run judge: {:?}", e))
     }
 }

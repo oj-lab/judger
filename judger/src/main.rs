@@ -8,10 +8,14 @@ mod worker;
 extern crate serde_derive;
 extern crate lazy_static;
 
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, time::Duration};
 
 use actix_web::{App, HttpServer};
 use agent::{platform, rclone::RcloneClient};
+use judge_core::judge::{
+    result::{JudgeResultInfo, JudgeVerdict},
+    JudgeConfig,
+};
 use option::JudgerCommad;
 use worker::JudgeWorker;
 
@@ -49,14 +53,17 @@ async fn main() -> std::io::Result<()> {
             problem_slug,
             language,
             src_path,
-        } => judge(
-            maybe_rclone_client,
-            opt.problem_package_bucket,
-            opt.problem_package_dir,
-            problem_slug,
-            language,
-            src_path,
-        ),
+        } => {
+            judge(
+                maybe_rclone_client,
+                opt.problem_package_bucket,
+                opt.problem_package_dir,
+                problem_slug,
+                language,
+                src_path,
+            )
+            .await
+        }
     }
 }
 
@@ -95,7 +102,7 @@ async fn serve(
     .await
 }
 
-fn judge(
+async fn judge(
     maybe_rclone_client: Option<RcloneClient>,
     problem_package_bucket: String,
     problem_package_dir: PathBuf,
@@ -126,13 +133,43 @@ fn judge(
         }
     };
 
-    match worker.run_judge(problem_slug, language, code) {
-        Ok(result) => {
-            println!("{:?}", result);
+    let prepare_result = worker.prepare_judge(problem_slug.clone(), language, code.clone());
+    if prepare_result.is_err() {
+        log::error!("Failed to prepare judge: {:?}", prepare_result.err());
+        return Ok(());
+    }
+    let judge = prepare_result.unwrap();
+
+    let mut verdict = JudgeVerdict::Accepted;
+    for idx in 0..judge.testdata_configs.len() {
+        let judge_config = JudgeConfig {
+            test_data: judge.testdata_configs[idx].clone(),
+            program: judge.program_config.clone(),
+            checker: judge.checker_config.clone(),
+            runtime: judge.runtime_config.clone(),
+        };
+
+        let judge_result = worker.run_judge(judge_config);
+        let mut result = JudgeResultInfo {
+            verdict: JudgeVerdict::SystemError,
+            time_usage: Duration::from_secs(0),
+            memory_usage_bytes: 0,
+            exit_status: -1,
+            checker_exit_status: -1,
+        };
+        match judge_result {
+            Ok(r) => {
+                result = r;
+            }
+            Err(e) => {
+                log::debug!("Failed to run judge: {:?}", e);
+            }
         }
-        Err(e) => {
-            log::error!("Failed to judge task: {:?}", e);
+        if result.verdict != JudgeVerdict::Accepted {
+            verdict = result.verdict;
+            break;
         }
     }
+    println!("{:?}", verdict);
     Ok(())
 }

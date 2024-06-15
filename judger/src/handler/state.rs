@@ -1,7 +1,6 @@
-use std::sync::RwLock;
-
 use actix_web::{get, web, HttpResponse};
 use lazy_static::lazy_static;
+use std::sync::RwLock;
 
 use crate::error::ServiceError;
 

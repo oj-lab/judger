@@ -1,3 +1,5 @@
+use reqwest::Url;
+
 pub struct HttpClient {
     client: reqwest::Client,
     base_url: String,
@@ -9,7 +11,13 @@ impl HttpClient {
         Self { client, base_url }
     }
 
-    pub fn post(&self, path: String) -> reqwest::RequestBuilder {
-        self.client.post(format!("{}{}", self.base_url, path))
+    pub fn post(&self, path: String) -> Result<reqwest::RequestBuilder, anyhow::Error> {
+        let url = Url::parse(&format!("{}{}", self.base_url, path))?;
+        Ok(self.client.post(url))
+    }
+
+    pub fn put(&self, path: String) -> Result<reqwest::RequestBuilder, anyhow::Error> {
+        let url = Url::parse(&format!("{}{}", self.base_url, path))?;
+        Ok(self.client.put(url))
     }
 }
