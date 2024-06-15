@@ -27,8 +27,8 @@ impl PlatformClient {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct JudgeTask {
-    #[serde(rename = "submissionUID")]
-    pub submission_uid: String,
+    #[serde(rename = "judgeUID")]
+    pub judge_uid: String,
     #[serde(rename = "problemSlug")]
     pub problem_slug: String,
     pub code: String,

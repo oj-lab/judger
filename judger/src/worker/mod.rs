@@ -84,10 +84,7 @@ impl JudgeWorker {
                                 );
                                 return;
                             }
-                            log::info!(
-                                "Submission {:?} report success",
-                                task.submission_uid.clone()
-                            );
+                            log::info!("judge {:?} report success", task.judge_uid.clone());
                         }
                         Err(e) => log::info!("Error judge task: {:?}", e),
                     }
