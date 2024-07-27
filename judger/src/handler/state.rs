@@ -19,7 +19,7 @@ pub fn set_busy() -> anyhow::Result<()> {
     let mut state = STATE
         .try_write()
         .map_err(|e| anyhow::anyhow!("Failed to lock state: {:?}", e))?;
-    log::info!("State: {:?}", *state);
+    log::info!("Current State: {:?}", *state);
     if *state == State::Busy {
         anyhow::bail!("Judge server is busy")
     }
