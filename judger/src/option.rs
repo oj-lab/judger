@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use chrono::Local;
+use std::io::Write;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug, Clone)]
@@ -77,5 +79,19 @@ pub fn load_option() -> JudgerOpt {
 }
 
 fn setup_logger() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
+    let env = env_logger::Env::default().default_filter_or("debug");
+    env_logger::Builder::from_env(env)
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{} {:5} [{}:{}] {}",
+                Local::now().format("%Y-%m-%d %H:%M:%S"),
+                record.level(),
+                record.file().unwrap(),
+                // record.module_path().unwrap_or("<unnamed>"),
+                record.line().unwrap(),
+                &record.args()
+            )
+        })
+        .init();
 }

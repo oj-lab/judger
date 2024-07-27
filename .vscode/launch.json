@@ -32,9 +32,9 @@
       "program": "${workspaceFolder}/target/debug/judger",
       "args": [
         "judge",
-        "--problem-slug", "hello_world",
+        "--problem-slug", "hello-world",
         "--language", "cpp",
-        "--src-path", "${workspaceFolder}/judger/workdirs/development/problem-package/hello_world/ans.cpp",
+        "--src-path", "${workspaceFolder}/judger/workdirs/development/problem-package/hello-world/ans.cpp",
       ],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/judger/workdirs/development",

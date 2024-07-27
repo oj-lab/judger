@@ -170,7 +170,7 @@ impl Compiler {
             .output()?;
         if output.status.success() {
             let compile_output = String::from_utf8_lossy(&output.stdout).to_string();
-            log::info!("Compile output: {}", compile_output);
+            log::debug!("Compile output: {}", compile_output);
             Ok(compile_output)
         } else {
             let error_output = String::from_utf8_lossy(&output.stderr).to_string();

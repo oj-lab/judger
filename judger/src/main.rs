@@ -142,6 +142,7 @@ async fn judge(
 
     let mut verdict = JudgeVerdict::Accepted;
     for idx in 0..judge.testdata_configs.len() {
+        log::debug!("Judge {}, Testcase {}!", problem_slug, idx);
         let judge_config = JudgeConfig {
             test_data: judge.testdata_configs[idx].clone(),
             program: judge.program_config.clone(),

@@ -101,6 +101,12 @@ impl JudgeWorker {
 
                     let mut verdict = JudgeVerdict::Accepted;
                     for idx in 0..judge.testdata_configs.len() {
+                        log::debug!(
+                            "Judge {}, {}, Testcase {}!",
+                            task.redis_stream_id,
+                            task.problem_slug,
+                            idx
+                        );
                         let judge_config = JudgeConfig {
                             test_data: judge.testdata_configs[idx].clone(),
                             program: judge.program_config.clone(),
@@ -188,7 +194,7 @@ impl JudgeWorker {
             src_language: language,
             src_path: runtime_path.clone().join(&src_file_name),
         })?;
-        log::debug!("Builder created: {:?}", builder);
+        log::info!("Builder created success: {:?}", builder);
         Ok(builder)
     }
 
