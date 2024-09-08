@@ -162,8 +162,7 @@ impl Compiler {
         let output = Command::new("sh")
             .arg("-c")
             .arg(
-                &self
-                    .command_builder
+                self.command_builder
                     .get_command(vec![src_path_string, target_path_string]),
             )
             .args(self.compiler_args.iter())
