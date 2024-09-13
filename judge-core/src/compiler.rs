@@ -39,8 +39,11 @@ impl CommandBuilder {
 
 #[derive(Debug, Clone, PartialEq, Copy, Serialize, Deserialize)]
 pub enum Language {
+    #[serde(rename = "rust")]
     Rust,
+    #[serde(rename = "cpp")]
     Cpp,
+    #[serde(rename = "python")]
     Python,
     // add other supported languages here
 }
