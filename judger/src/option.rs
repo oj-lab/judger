@@ -23,7 +23,7 @@ pub struct JudgerOpt {
     #[structopt(long, default_value = "oj-lab-problem-package")]
     pub problem_package_bucket: String,
     /// Where to store problem package
-    #[structopt(env = "PROBLEM_PACKAGE_PATH", default_value = "problem-package")]
+    #[structopt(env = "PROBLEM_PACKAGE_PATH", default_value = "problem-packages")]
     pub problem_package_dir: PathBuf,
 }
 

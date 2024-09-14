@@ -13,7 +13,7 @@
         "serve"
       ],
       "stopAtEntry": false,
-      "cwd": "${workspaceFolder}/judger/workdirs/development",
+      "cwd": "${workspaceFolder}/judger/",
       "environment": [],
       "externalConsole": false,
       "MIMode": "gdb",

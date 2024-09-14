@@ -17,10 +17,13 @@ RUN curl https://rclone.org/install.sh | bash
 
 RUN mkdir /workdir
 RUN mkdir /workdir/problem-package
-COPY judger/workdirs/docker/ /workdir
+COPY judger/.env /workdir/.env
+COPY judger/rclone.conf /workdir/rclone.conf
+RUN sed -i 's/127.0.0.1/host.docker.internal/g' /workdir/rclone.conf
 
 WORKDIR /workdir
 ENV RUST_LOG=DEBUG
 ENV PLATFORM_URI=http://host.docker.internal:8080/
+ENV ENABLE_RCLONE=true
 EXPOSE 8000
 CMD [ "judger", "serve" ]
