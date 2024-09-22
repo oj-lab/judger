@@ -43,10 +43,11 @@ impl PlatformClient {
 
     pub async fn report_judge_task(
         &self,
+        judge_uid: &str,
         stream_id: &str,
         verdict: JudgeVerdict,
     ) -> Result<(), anyhow::Error> {
-        report_task(&self.client, stream_id, verdict).await
+        report_task(&self.client, judge_uid, stream_id, verdict).await
     }
 }
 
@@ -163,6 +164,8 @@ async fn report_judge_result(
 
 #[derive(Serialize)]
 struct ReportJudgeTaskBody {
+    #[serde(rename = "judgeUID")]
+    judge_uid: String,
     consumer: String,
     #[serde(rename = "redisStreamID")]
     redis_stream_id: String,
@@ -175,11 +178,13 @@ struct ReportJudgeTaskResponse {
 
 async fn report_task(
     client: &HttpClient,
+    judge_uid: &str,
     stream_id: &str,
     verdict: JudgeVerdict,
 ) -> Result<(), anyhow::Error> {
     let report_url = "api/v1/judge/task/report";
     let body = ReportJudgeTaskBody {
+        judge_uid: judge_uid.to_owned(),
         consumer: "".to_string(),
         redis_stream_id: stream_id.to_owned(),
         verdict,
