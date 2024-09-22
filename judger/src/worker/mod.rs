@@ -84,11 +84,7 @@ impl JudgeWorker {
                             verdict = JudgeVerdict::CompileError;
                         }
                         let _ = platform_client
-                            .report_judge_task(
-                                &task.judge_uid,
-                                &task.redis_stream_id.clone(),
-                                verdict,
-                            )
+                            .report_judge_task(&task.redis_stream_id.clone(), verdict)
                             .await
                             .map_err(|e| {
                                 log::debug!("Failed to report judge task: {:?}", e);
@@ -153,7 +149,7 @@ impl JudgeWorker {
                     }
 
                     let _ = platform_client
-                        .report_judge_task(&task.judge_uid, &task.redis_stream_id.clone(), verdict)
+                        .report_judge_task(&task.redis_stream_id.clone(), verdict)
                         .await
                         .map_err(|e| {
                             log::debug!("Failed to report judge task: {:?}", e);
