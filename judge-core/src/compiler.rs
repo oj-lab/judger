@@ -10,7 +10,7 @@ const TEMPLATE_ARG_SRC_PATH: &str = "{src_path}";
 const TEMPLATE_ARG_TARGET_PATH: &str = "{target_path}";
 
 const RUST_COMPILE_COMMAND_TEMPLATE: &str = "rustc {src_path} -o {target_path}";
-const CPP_COMPILE_COMMAND_TEMPLATE: &str = "g++ {src_path} -o {target_path}";
+const CPP_COMPILE_COMMAND_TEMPLATE: &str = "g++ {src_path} -o {target_path} -O2 -static";
 const PYTHON_COMPILE_COMMAND_TEMPLATE: &str = "cp {src_path} {target_path}";
 
 #[derive(Clone)]
