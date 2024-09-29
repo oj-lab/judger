@@ -8,7 +8,7 @@ RUN apt update && apt install -y libseccomp-dev gcc
 RUN cargo build --bin judger --release
 
 
-FROM ubuntu:latest
+FROM ubuntu:22.04
 
 RUN apt update && apt install -y libseccomp-dev gcc g++ curl unzip
 COPY --from=build /usr/src/judger/target/release/judger /usr/local/bin/judger
