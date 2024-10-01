@@ -6,9 +6,9 @@ pub struct PlatformClient {
 }
 
 impl PlatformClient {
-    pub fn new(base_url: String) -> Self {
+    pub fn new(base_url: String, internal_token: String) -> Self {
         Self {
-            client: HttpClient::new(base_url),
+            client: HttpClient::new(base_url, internal_token),
         }
     }
 

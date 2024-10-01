@@ -6,8 +6,19 @@ pub struct HttpClient {
 }
 
 impl HttpClient {
-    pub fn new(base_url: String) -> Self {
-        let client = reqwest::Client::new();
+    pub fn new(base_url: String, internal_token: String) -> Self {
+        let client = reqwest::Client::builder()
+            .default_headers({
+                let mut headers = reqwest::header::HeaderMap::new();
+                headers.insert(
+                    reqwest::header::AUTHORIZATION,
+                    reqwest::header::HeaderValue::from_str(&format!("Bearer {}", internal_token))
+                        .unwrap(),
+                );
+                headers
+            })
+            .build()
+            .unwrap();
         Self { client, base_url }
     }
 

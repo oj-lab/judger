@@ -36,6 +36,7 @@ async fn main() -> std::io::Result<()> {
     match opt.cmd {
         option::JudgerCommad::Serve {
             platform_uri,
+            internal_token,
             fetch_task_interval,
             port,
         } => {
@@ -44,6 +45,7 @@ async fn main() -> std::io::Result<()> {
                 opt.problem_package_bucket,
                 opt.problem_package_dir,
                 platform_uri.clone(),
+                internal_token,
                 fetch_task_interval,
                 port,
             )
@@ -72,10 +74,11 @@ async fn serve(
     problem_package_bucket: String,
     problem_package_dir: PathBuf,
     platform_uri: String,
+    internal_token: String,
     fetch_task_interval: u64,
     port: u16,
 ) -> std::io::Result<()> {
-    let platform_client = platform::PlatformClient::new(platform_uri.clone());
+    let platform_client = platform::PlatformClient::new(platform_uri.clone(), internal_token);
 
     let worker = match JudgeWorker::new(
         Some(platform_client),

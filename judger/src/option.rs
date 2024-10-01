@@ -33,6 +33,8 @@ pub enum JudgerCommad {
     Serve {
         #[structopt(env = "PLATFORM_URI", default_value = "http://localhost:8080/")]
         platform_uri: String,
+        #[structopt(env = "INTERNAL_TOKEN", default_value = "internal_token")]
+        internal_token: String,
         /// Interval to fetch task in seconds
         #[structopt(env = "FETCH_TASK_INTERVAL", default_value = "10")]
         fetch_task_interval: u64,
