@@ -3,8 +3,11 @@ use crate::utils::get_pathbuf_str;
 use anyhow::anyhow;
 use serde_derive::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::process::Stdio;
+use std::time::Duration;
 use std::{fmt, fs};
 use std::{process::Command, str::FromStr};
+use wait_timeout::ChildExt;
 
 const TEMPLATE_ARG_SRC_PATH: &str = "{src_path}";
 const TEMPLATE_ARG_TARGET_PATH: &str = "{target_path}";
@@ -12,6 +15,8 @@ const TEMPLATE_ARG_TARGET_PATH: &str = "{target_path}";
 const RUST_COMPILE_COMMAND_TEMPLATE: &str = "rustc {src_path} -o {target_path}";
 const CPP_COMPILE_COMMAND_TEMPLATE: &str = "g++ {src_path} -o {target_path} -O2 -static";
 const PYTHON_COMPILE_COMMAND_TEMPLATE: &str = "cp {src_path} {target_path}";
+
+const COMPILE_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Clone)]
 struct CommandBuilder {
@@ -162,22 +167,37 @@ impl Compiler {
             std::fs::remove_file(target_path)?;
         }
 
-        let output = Command::new("sh")
+        let mut child = Command::new("sh")
             .arg("-c")
             .arg(
                 self.command_builder
                     .get_command(vec![src_path_string, target_path_string]),
             )
             .args(self.compiler_args.iter())
-            .output()?;
-        if output.status.success() {
-            let compile_output = String::from_utf8_lossy(&output.stdout).to_string();
-            log::debug!("Compile output: {}", compile_output);
-            Ok(compile_output)
-        } else {
-            let error_output = String::from_utf8_lossy(&output.stderr).to_string();
-            log::error!("Compile error: {}", error_output);
-            Err(JudgeCoreError::CompileError(error_output))
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        match child.wait_timeout(COMPILE_TIMEOUT)? {
+            Some(status) => {
+                if status.success() {
+                    let output = child.wait_with_output()?;
+                    let compile_output = String::from_utf8_lossy(&output.stdout).to_string();
+                    log::debug!("Compile output: {}", compile_output);
+                    Ok(compile_output)
+                } else {
+                    let output = child.wait_with_output()?;
+                    let error_output = String::from_utf8_lossy(&output.stderr).to_string();
+                    log::error!("Compile error: {}", error_output);
+                    Err(JudgeCoreError::CompileError(error_output))
+                }
+            }
+            None => {
+                child.kill()?;
+                let error_output = "Compile process timed out".to_string();
+                log::error!("Compile error: {}", error_output);
+                Err(JudgeCoreError::CompileError(error_output))
+            }
         }
     }
 }
