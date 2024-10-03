@@ -57,7 +57,7 @@ impl Executor {
             Language::Rust => vec![],
             Language::Cpp => vec![],
             Language::Python => {
-                vec![path_string]
+                vec!["python3".to_string(), path_string]
             }
         };
         Ok((command, args))

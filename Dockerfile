@@ -10,7 +10,7 @@ RUN cargo build --bin judger --release
 
 FROM ubuntu:22.04
 
-RUN apt update && apt install -y libseccomp-dev gcc g++ curl unzip
+RUN apt update && apt install -y libseccomp-dev gcc g++ curl unzip python3
 COPY --from=build /usr/src/judger/target/release/judger /usr/local/bin/judger
 
 RUN curl https://rclone.org/install.sh | bash

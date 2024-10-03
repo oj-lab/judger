@@ -74,6 +74,26 @@ fn test_run_judge() {
 }
 
 #[test]
+fn test_run_judge_python() {
+    init();
+    log::debug!("current dir: {:?}", std::env::current_dir().unwrap());
+
+    let program_path =
+        PathBuf::from(TEST_DATA_PATH).join("built-in-programs/src/programs/read_and_write.py");
+    let program_executor = Executor::new(Language::Python, program_path.clone()).unwrap();
+
+    let runner_config = build_test_config(program_executor);
+    let result = run_judge(&runner_config);
+    if let Ok(result) = result {
+        log::debug!("{:?}", result);
+        assert_eq!(result.verdict, JudgeVerdict::Accepted);
+    } else {
+        log::debug!("{:?}", result);
+        unreachable!()
+    }
+}
+
+#[test]
 fn test_run_tle() {
     init();
     let program_path =

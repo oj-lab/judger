@@ -59,7 +59,11 @@ impl Sandbox {
     /// Currently close all `stderr` and close `stdin`/`stdout` if redirect is not set
     fn load_io(&self) -> Result<(), JudgeCoreError> {
         let stderr_raw_fd = io::stderr().as_raw_fd();
-        close(stderr_raw_fd)?;
+        if let Some(output_redirect) = self.output_redirect {
+            dup2(output_redirect, stderr_raw_fd)?;
+        } else {
+            close(io::stdin().as_raw_fd())?;
+        }
 
         let stdin_raw_fd = io::stdin().as_raw_fd();
         let stdout_raw_fd = io::stdout().as_raw_fd();
@@ -191,7 +195,7 @@ fn get_default_rusage() -> rusage {
     }
 }
 
-const DEFAULT_SCMP_WHITELIST: [&str; 27] = [
+const DEFAULT_SCMP_WHITELIST: [&str; 41] = [
     "read",
     "fstat",
     "mmap",
@@ -219,4 +223,18 @@ const DEFAULT_SCMP_WHITELIST: [&str; 27] = [
     "prlimit64",
     "futex",
     "openat",
+    "getcwd",
+    "gettid",
+    "ioctl",
+    "getdents64",
+    "rt_sigaction",
+    "getegid",
+    "geteuid",
+    "getgid",
+    "getuid",
+    "fcntl",
+    "getpid",
+    "socket",
+    "dup",
+    "connect",
 ];
