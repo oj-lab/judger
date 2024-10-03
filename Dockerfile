@@ -16,7 +16,7 @@ COPY --from=build /usr/src/judger/target/release/judger /usr/local/bin/judger
 RUN curl https://rclone.org/install.sh | bash
 
 RUN mkdir /workdir
-RUN mkdir /workdir/problem-package
+
 COPY judger/.env /workdir/.env
 COPY judger/rclone.conf /workdir/rclone.conf
 RUN sed -i 's/127.0.0.1/host.docker.internal/g' /workdir/rclone.conf
