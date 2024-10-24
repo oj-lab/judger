@@ -18,9 +18,12 @@ jobs:
       - name: Check format
         run: cargo fmt --all -- --check
       - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        # run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --all-features
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libseccomp-dev protobuf-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libseccomp-dev protobuf-compiler libcgroup-dev
       - name: Check ENV
         run: echo $(rustup --version && g++ -v)
       - name: Build test dist

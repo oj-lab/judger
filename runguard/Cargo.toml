@@ -1,0 +1,14 @@
+[package]
+name = "runguard"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+libc = "0.2"
+nix = { version = "0.29", features = ["signal"] }
+
+clap = { version = "4", features = ["derive"] }
+chrono = "0.4"
+humantime = "2"
+regex = "1"
