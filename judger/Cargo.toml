@@ -41,6 +41,6 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # error handling
 anyhow = "1"
-thiserror = "1"
+thiserror = "2"
 
 uuid = { version = "1.4", features = ["serde", "v4"] }
