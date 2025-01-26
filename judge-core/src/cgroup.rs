@@ -1,12 +1,27 @@
+// ignore unused warning
+#![allow(dead_code)]
+
 use std::ffi::CString;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::os::raw::c_char;
 
-use crate::context::Context;
-
 extern "C" {
     fn cgroup_new_cgroup(name: *const c_char) -> *mut libc::c_void;
+    fn cgroup_add_controller(
+        cgroup: *mut libc::c_void,
+        controller: *const c_char,
+    ) -> *mut libc::c_void;
+    fn cgroup_add_value_string(
+        controller: *mut libc::c_void,
+        name: *const c_char,
+        value: *const c_char,
+    ) -> i32;
+    fn cgroup_get_value_string(
+        controller: *mut libc::c_void,
+        name: *const c_char,
+        value: *mut *mut c_char,
+    ) -> i32;
     fn cgroup_strerror(err: i32) -> *const c_char;
 }
 
@@ -59,21 +74,59 @@ pub enum CGroupError {
 }
 
 struct CGroup {
-    ctx: Context,
     cgroup: *mut libc::c_void,
 }
 
 impl CGroup {
-    fn new(mut ctx: Context, name: &str) -> Self {
+    fn new(name: &str) -> Self {
         let cgroup_name = CString::new(name).expect("CString::new failed");
         unsafe {
             let cgroup = cgroup_new_cgroup(cgroup_name.as_ptr());
             if cgroup.is_null() {
-                ctx.error(0, format_args!("cgroup_new_cgroup"));
-            } else {
-                ctx.verbose(format_args!("cgroup_new_cgroup: {}", name));
+                panic!("Failed to create cgroup");
             }
-            CGroup { ctx, cgroup }
+            CGroup { cgroup }
+        }
+    }
+
+    fn add_controller(&self, controller: &str) -> *mut libc::c_void {
+        let controller = CString::new(controller).expect("CString::new failed");
+        unsafe {
+            let ret = cgroup_add_controller(self.cgroup, controller.as_ptr());
+            if ret.is_null() {
+                eprintln!("Failed to add controller to cgroup");
+            }
+            ret
+        }
+    }
+
+    fn add_value_string(&self, controller: *mut libc::c_void, name: &str, value: &str) {
+        let name = CString::new(name).expect("CString::new failed");
+        let value = CString::new(value).expect("CString::new failed");
+        unsafe {
+            let ret = cgroup_add_value_string(controller, name.as_ptr(), value.as_ptr());
+            if ret != 0 {
+                eprintln!(
+                    "Failed to add value to cgroup: {}",
+                    cgroup_strerror_safe(ret)
+                );
+            }
+        }
+    }
+
+    fn cgroup_get_value_string(&self, controller: *mut libc::c_void, name: &str) -> String {
+        let name = CString::new(name).expect("CString::new failed");
+        let mut value: *mut c_char = std::ptr::null_mut();
+        unsafe {
+            let ret = cgroup_get_value_string(controller, name.as_ptr(), &mut value);
+            if ret != 0 {
+                eprintln!(
+                    "Failed to get value from cgroup: {}",
+                    cgroup_strerror_safe(ret)
+                );
+            }
+            let value = std::ffi::CStr::from_ptr(value).to_str().unwrap();
+            value.to_string()
         }
     }
 }
@@ -110,14 +163,18 @@ pub fn cgroup_strerror_safe(err: i32) -> String {
 
 #[test]
 fn test_cgroup() {
-    let ctx = Context::default();
-    let _ = CGroup::new(ctx, "my_cgroup");
+    let cgroup = CGroup::new("my_cgroup");
 
     if cgroup_is_v2() {
         println!("cgroup v2 is enabled");
     } else {
         println!("cgroup v2 is not enabled");
     }
+
+    let controller = cgroup.add_controller("cpuset");
+    cgroup.add_value_string(controller, "cpuset.cpus", "0-1");
+    let value = cgroup.cgroup_get_value_string(controller, "cpuset.cpus");
+    println!("{}", value);
 }
 
 #[test]

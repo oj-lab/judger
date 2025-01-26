@@ -4,7 +4,7 @@ COPY judge-core/ /usr/src/judge-core
 COPY judger/     /usr/src/judger
 
 WORKDIR /usr/src/judger
-RUN apt update && apt install -y libseccomp-dev gcc
+RUN apt update && apt install -y libseccomp-dev gcc libcgroup-dev
 RUN cargo build --bin judger --release
 
 
