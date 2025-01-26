@@ -141,12 +141,10 @@ fn cgroup_is_v2() -> bool {
     };
 
     let reader = io::BufReader::new(file);
-    for line in reader.lines() {
-        if let Ok(line) = line {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 3 && parts[1] == "/sys/fs/cgroup" && parts[2] == "cgroup2" {
-                return true;
-            }
+    for line in reader.lines().flatten() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 3 && parts[1] == "/sys/fs/cgroup" && parts[2] == "cgroup2" {
+            return true;
         }
     }
 

@@ -9,7 +9,8 @@ use judge_core::{
         CheckerConfig, JudgeConfig, ProgramConfig, RuntimeConfig, TestdataConfig,
     },
     package::PackageType,
-    run::{executor::Executor, RlimitConfigs},
+    run::executor::Executor,
+    sandbox::RlimitConfigs,
 };
 
 use judge_core::judge::common::run_judge;

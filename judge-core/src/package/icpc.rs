@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use crate::{
     error::JudgeCoreError,
     judge::{CheckerConfig, TestdataConfig},
-    run::{RlimitConfigs, DEFAULT_RLIMIT_CONFIGS},
+    sandbox::{RlimitConfigs, DEFAULT_RLIMIT_CONFIGS},
 };
 
 use super::PackageAgent;

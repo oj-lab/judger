@@ -1,5 +1,5 @@
-use super::sandbox::{RawRunResultInfo, Sandbox};
-use crate::error::JudgeCoreError;
+use super::sandbox::ExecutorSandbox;
+use crate::{error::JudgeCoreError, sandbox::SandboxExitInfo};
 use nix::unistd::{fork, write, ForkResult};
 use serde_derive::{Deserialize, Serialize};
 use std::os::{fd::BorrowedFd, unix::io::RawFd};
@@ -24,7 +24,7 @@ impl ProcessListener {
         self.exit_signal = exit_signal;
     }
 
-    fn report_exit(&self, option_run_result: Option<RawRunResultInfo>) {
+    fn report_exit(&self, option_run_result: Option<SandboxExitInfo>) {
         if self.child_exit_fd != -1 {
             let msg = ProcessExitMessage {
                 exit_signal: self.exit_signal,
@@ -39,7 +39,7 @@ impl ProcessListener {
 
     pub fn spawn_with_sandbox(
         &mut self,
-        sandbox: &mut Sandbox,
+        sandbox: &mut ExecutorSandbox,
     ) -> Result<Option<()>, JudgeCoreError> {
         match unsafe { fork() } {
             Ok(ForkResult::Parent { .. }) => Ok(Some(())),
@@ -62,5 +62,5 @@ impl ProcessListener {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProcessExitMessage {
     pub exit_signal: u8,
-    pub option_run_result: Option<RawRunResultInfo>,
+    pub option_run_result: Option<SandboxExitInfo>,
 }

@@ -1,9 +1,9 @@
 use crate::judge::result::{
     check_checker_result, check_user_result, get_max_mem, get_run_time, JudgeResultInfo,
 };
-use crate::run::SCRIPT_LIMIT_CONFIG;
+use crate::sandbox::SCRIPT_LIMIT_CONFIG;
 use crate::utils::{compare_files, get_pathbuf_str};
-use crate::{error::JudgeCoreError, run::sandbox::Sandbox};
+use crate::{error::JudgeCoreError, run::sandbox::ExecutorSandbox};
 
 use super::result::JudgeVerdict;
 use super::JudgeConfig;
@@ -30,7 +30,7 @@ fn run_user(
     let program_output_raw_fd: RawFd = program_output_file.as_raw_fd();
 
     let user_executor = config.program.executor.clone();
-    let mut user_sandbox = Sandbox::new(
+    let mut user_sandbox = ExecutorSandbox::new(
         user_executor,
         config.runtime.rlimit_configs.clone(),
         Some(input_raw_fd),
@@ -64,7 +64,7 @@ pub fn run_checker(config: &JudgeConfig) -> Result<(JudgeVerdict, i32), JudgeCor
         ];
         checker_executor.set_additional_args(checker_args);
 
-        let mut checker_process = Sandbox::new(
+        let mut checker_process = ExecutorSandbox::new(
             checker_executor,
             SCRIPT_LIMIT_CONFIG.clone(),
             None,

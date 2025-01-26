@@ -3,8 +3,8 @@ use crate::judge::common::run_checker;
 use crate::judge::result::{check_user_result, JudgeVerdict};
 use crate::run::executor::Executor;
 use crate::run::process_listener::{ProcessExitMessage, ProcessListener};
-use crate::run::sandbox::{RawRunResultInfo, Sandbox};
-use crate::run::SCRIPT_LIMIT_CONFIG;
+use crate::run::sandbox::ExecutorSandbox;
+use crate::sandbox::{SandboxExitInfo, SCRIPT_LIMIT_CONFIG};
 use crate::utils::get_pathbuf_str;
 
 use nix::errno::Errno;
@@ -130,7 +130,7 @@ pub fn run_interact(
         .open(output_path)?;
     let output_raw_fd: RawFd = output_file.as_raw_fd();
 
-    let mut user_sandbox = Sandbox::new(
+    let mut user_sandbox = ExecutorSandbox::new(
         config.program.executor.clone(),
         config.runtime.rlimit_configs.clone(),
         Some(user_read_proxy.as_raw_fd()),
@@ -147,7 +147,7 @@ pub fn run_interact(
         get_pathbuf_str(&config.test_data.answer_file_path)?,
     ];
     interactor_executor.set_additional_args(interact_args);
-    let mut interact_sandbox = Sandbox::new(
+    let mut interact_sandbox = ExecutorSandbox::new(
         interactor_executor,
         SCRIPT_LIMIT_CONFIG.clone(),
         Some(interactor_read_proxy.as_raw_fd()),
@@ -160,7 +160,7 @@ pub fn run_interact(
     let mut events = [EpollEvent::empty(); 128];
     let mut user_exited = false;
     let mut interactor_exited = false;
-    let mut option_user_result: Option<RawRunResultInfo> = None;
+    let mut option_user_result: Option<SandboxExitInfo> = None;
     loop {
         let num_events = epoll.wait(&mut events, EpollTimeout::NONE)?;
         log::debug!("{} events found!", num_events);

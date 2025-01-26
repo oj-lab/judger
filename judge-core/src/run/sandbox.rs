@@ -1,28 +1,27 @@
 use crate::error::JudgeCoreError;
-use libc::{c_int, rusage, wait4, WEXITSTATUS, WSTOPPED, WTERMSIG};
+use crate::sandbox::RlimitConfigs;
+use crate::sandbox::Sandbox;
+use crate::sandbox::SandboxExitInfo;
+use libc::rusage;
 use libseccomp::{ScmpAction, ScmpFilterContext, ScmpSyscall};
 use nix::unistd::close;
 use nix::unistd::dup2;
-use nix::unistd::{fork, ForkResult};
 use serde_derive::{Deserialize, Serialize};
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use super::executor::Executor;
-use super::RlimitConfigs;
 
-pub struct Sandbox {
+pub struct ExecutorSandbox {
     executor: Executor,
-    rlimit_configs: RlimitConfigs,
-    scmp_filter: ScmpFilterContext,
     input_redirect: Option<RawFd>,
     output_redirect: Option<RawFd>,
-    pub child_pid: i32,
-    begin_time: Instant,
+
+    pub sandbox: Sandbox,
 }
 
-impl Sandbox {
+impl ExecutorSandbox {
     pub fn new(
         executor: Executor,
         rlimit_configs: RlimitConfigs,
@@ -43,100 +42,59 @@ impl Sandbox {
             }
         }
 
-        let child_pid = -1;
-        let begin_time = Instant::now();
+        let sandbox = Sandbox::new(Some(rlimit_configs), Some(scmp_filter))?;
         Ok(Self {
             executor,
-            rlimit_configs,
-            scmp_filter,
             input_redirect,
             output_redirect,
-            child_pid,
-            begin_time,
+            sandbox,
         })
     }
 
-    /// Currently close all `stderr` and close `stdin`/`stdout` if redirect is not set
-    fn load_io(&self) -> Result<(), JudgeCoreError> {
-        let stderr_raw_fd = io::stderr().as_raw_fd();
-        if let Some(output_redirect) = self.output_redirect {
-            dup2(output_redirect, stderr_raw_fd)?;
-        } else {
-            close(io::stdin().as_raw_fd())?;
-        }
-
-        let stdin_raw_fd = io::stdin().as_raw_fd();
-        let stdout_raw_fd = io::stdout().as_raw_fd();
-        if let Some(input_redirect) = self.input_redirect {
-            dup2(input_redirect, stdin_raw_fd)?;
-        } else {
-            close(stdin_raw_fd)?;
-        }
-
-        if let Some(output_redirect) = self.output_redirect {
-            dup2(output_redirect, stdout_raw_fd)?;
-        } else {
-            close(stdout_raw_fd)?;
-        }
-        Ok(())
-    }
-
-    pub fn wait(&self) -> Result<RawRunResultInfo, JudgeCoreError> {
-        let mut status: c_int = 0;
-        let mut usage: rusage = get_default_rusage();
-        unsafe {
-            wait4(self.child_pid, &mut status, WSTOPPED, &mut usage);
-        }
-
-        log::info!("Detected process pid={} exit", self.child_pid);
-
-        Ok(RawRunResultInfo {
-            exit_status: status,
-            exit_signal: WTERMSIG(status),
-            exit_code: WEXITSTATUS(status),
-            real_time_cost: self.begin_time.elapsed(),
-            resource_usage: Rusage::from(usage),
-        })
+    pub fn wait(&self) -> Result<SandboxExitInfo, JudgeCoreError> {
+        self.sandbox.wait()
     }
 
     /// WARNING:   
     /// Unsafe to use `println!()` (or `unwrap()`) in child process.
     /// See more in `fork()` document.
     pub fn spawn(&mut self) -> Result<i32, JudgeCoreError> {
-        let now = Instant::now();
-        match unsafe { fork() } {
-            Ok(ForkResult::Parent { child, .. }) => {
-                log::info!("Forked child pid={}", child);
-                self.child_pid = child.as_raw();
-                self.begin_time = now;
-                Ok(child.as_raw())
-            }
-            // child process should not return to do things outside `spawn()`
-            Ok(ForkResult::Child) => {
-                // TODO: maybe customed error handler are needed
-                self.load_io().expect("Failed to load io redirect");
-                self.rlimit_configs
-                    .load()
-                    .expect("Failed to load rlimit configs");
-                self.scmp_filter
-                    .load()
-                    .expect("Failed to load seccomp filter");
+        let before_limit = {
+            let input_redirect = self.input_redirect;
+            let output_redirect = self.output_redirect;
+            move || {
+                let stderr_raw_fd = io::stderr().as_raw_fd();
+                if let Some(output_redirect) = output_redirect {
+                    dup2(output_redirect, stderr_raw_fd).expect("Failed to dup2 stderr");
+                } else {
+                    close(io::stdin().as_raw_fd()).expect("Failed to close stdin");
+                }
 
-                self.executor.exec().expect("Failed to exec");
-                unsafe { libc::_exit(0) };
+                let stdin_raw_fd = io::stdin().as_raw_fd();
+                let stdout_raw_fd = io::stdout().as_raw_fd();
+                if let Some(input_redirect) = input_redirect {
+                    dup2(input_redirect, stdin_raw_fd).expect("Failed to dup2 stdin");
+                } else {
+                    close(stdin_raw_fd).expect("Failed to close stdin");
+                }
+
+                if let Some(output_redirect) = output_redirect {
+                    dup2(output_redirect, stdout_raw_fd).expect("Failed to dup2 stdout");
+                } else {
+                    close(stdout_raw_fd).expect("Failed to close stdout");
+                }
             }
-            Err(e) => Err(JudgeCoreError::NixErrno(e)),
-        }
+        };
+
+        let after_limit = {
+            let executor = self.executor.clone();
+            move || {
+                executor.exec().expect("Failed to exec");
+            }
+        };
+
+        self.sandbox.spawn(before_limit, after_limit)
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RawRunResultInfo {
-    pub exit_status: c_int,
-    pub exit_signal: c_int,
-    pub exit_code: c_int,
-    pub real_time_cost: Duration,
-    pub resource_usage: Rusage,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -165,33 +123,6 @@ impl From<rusage> for Rusage {
             involuntary_context_switches: rusage.ru_nivcsw,
             voluntary_context_switches: rusage.ru_nvcsw,
         }
-    }
-}
-
-fn get_default_rusage() -> rusage {
-    rusage {
-        ru_utime: libc::timeval {
-            tv_sec: 0,
-            tv_usec: 0,
-        },
-        ru_stime: libc::timeval {
-            tv_sec: 0,
-            tv_usec: 0,
-        },
-        ru_maxrss: 0,
-        ru_ixrss: 0,
-        ru_idrss: 0,
-        ru_isrss: 0,
-        ru_minflt: 0,
-        ru_majflt: 0,
-        ru_nswap: 0,
-        ru_inblock: 0,
-        ru_oublock: 0,
-        ru_msgsnd: 0,
-        ru_msgrcv: 0,
-        ru_nsignals: 0,
-        ru_nvcsw: 0,
-        ru_nivcsw: 0,
     }
 }
 

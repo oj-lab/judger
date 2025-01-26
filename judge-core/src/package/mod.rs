@@ -7,7 +7,7 @@ use serde_derive::{Deserialize, Serialize};
 use crate::{
     error::JudgeCoreError,
     judge::{CheckerConfig, TestdataConfig},
-    run::RlimitConfigs,
+    sandbox::RlimitConfigs,
 };
 
 use self::icpc::ICPCPackageAgent;
