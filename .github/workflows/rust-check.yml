@@ -28,6 +28,10 @@ jobs:
         run: echo $(rustup --version && g++ -v)
       - name: Build test dist
         run: cd judge-core/tests/data/built-in-programs && ./build.sh && cd ../../../../
+      - name: Add sandbox user
+        run: sudo useradd -m sandbox
+      - name: Echo current user
+        run: whoami
       - name: Run tests
         # Currently use --test-threads=1 to avoid log mess
         # Should only be used in judge-core later

@@ -1,4 +1,5 @@
-use std::{fs, path::PathBuf};
+use std::{fs, os::unix::fs::PermissionsExt, path::PathBuf};
+use whoami;
 
 use anyhow::anyhow;
 
@@ -92,6 +93,11 @@ impl PackageAgent for ICPCPackageAgent {
             )));
         }
 
+        // print current user
+        log::debug!("Current user: {:?}", whoami::username());
+        // avoid sandbox users to read the raw testdata
+        log::debug!("Setting permission for testdata {:?}", testdata_path);
+        fs::set_permissions(&testdata_path, fs::Permissions::from_mode(0o700))?;
         copy_testdata_recursively(&testdata_path, &dest)
     }
 

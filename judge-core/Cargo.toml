@@ -19,6 +19,7 @@ serde_derive = "1"
 serde_json = "1"
 serde_yaml = "0.9"
 wait-timeout = "0.2"
+whoami = "1.5"
 
 [dev-dependencies]
 # Need to lock the version of env_logger to 0.10.0

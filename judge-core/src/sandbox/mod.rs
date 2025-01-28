@@ -7,7 +7,7 @@ use nix::sys::resource::{
 };
 use nix::unistd::{fork, ForkResult};
 use serde_derive::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
+use std::{process::Command, time::{Duration, Instant}};
 
 pub static DEFAULT_RLIMIT_CONFIGS: RlimitConfigs = RlimitConfigs {
     stack_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
@@ -24,6 +24,8 @@ pub static SCRIPT_LIMIT_CONFIG: RlimitConfigs = RlimitConfigs {
     nproc_limit: Some((1, 1)),
     fsize_limit: Some((1024, 1024)),
 };
+
+pub static SANDBOX_USERNAME: &str = "judger_sandbox";
 
 #[derive(Default, Debug, Clone, Serialize)]
 pub struct RlimitConfigs {
@@ -62,6 +64,7 @@ impl RlimitConfigs {
 pub struct Sandbox {
     pub child_pid: i32,
 
+    user_id: u32,
     rlimit_configs: Option<RlimitConfigs>,
     scmp_filter: Option<ScmpFilterContext>,
 
@@ -75,7 +78,22 @@ impl Sandbox {
     ) -> Result<Self, JudgeCoreError> {
         let child_pid = -1;
         let begin_time = Instant::now();
+
+        // Run `id -u $SANDBOX_USERNAME` to get the user id
+        let output = Command::new("id")
+            .arg("-u")
+            .arg(SANDBOX_USERNAME)
+            .output()
+            .map_err(|e| JudgeCoreError::AnyhowError(e.into()))?;
+        let user_id = String::from_utf8(output.stdout)
+            .map_err(|e| JudgeCoreError::AnyhowError(e.into()))?
+            .trim()
+            .parse::<u32>().map_err(|e| JudgeCoreError::AnyhowError(e.into()))?;
+        if unsafe { libc::getuid() == 0 } {
+            log::debug!("Sandbox user id: {}", user_id);
+        }
         Ok(Self {
+            user_id,
             rlimit_configs,
             scmp_filter,
             child_pid,
@@ -120,6 +138,16 @@ impl Sandbox {
             // child process should not return to do things outside `spawn()`
             Ok(ForkResult::Child) => {
                 before_limit();
+                // If current user is root
+                // setuid to the user
+                if unsafe { libc::getuid() == 0 } {
+                    unsafe {
+                        let res = libc::setuid(self.user_id);
+                        if res != 0 {
+                            libc::_exit(1);
+                        }
+                    }
+                }
                 if let Some(rlimit_configs) = &self.rlimit_configs {
                     rlimit_configs
                         .load()
