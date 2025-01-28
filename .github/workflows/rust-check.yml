@@ -29,7 +29,7 @@ jobs:
       - name: Build test dist
         run: cd judge-core/tests/data/built-in-programs && ./build.sh && cd ../../../../
       - name: Add sandbox user
-        run: sudo useradd -m sandbox
+        run: sudo useradd -m judger_sandbox
       - name: Echo current user
         run: whoami
       - name: Run tests

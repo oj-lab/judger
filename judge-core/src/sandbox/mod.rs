@@ -7,7 +7,10 @@ use nix::sys::resource::{
 };
 use nix::unistd::{fork, ForkResult};
 use serde_derive::{Deserialize, Serialize};
-use std::{process::Command, time::{Duration, Instant}};
+use std::{
+    process::Command,
+    time::{Duration, Instant},
+};
 
 pub static DEFAULT_RLIMIT_CONFIGS: RlimitConfigs = RlimitConfigs {
     stack_limit: Some((64 * 1024 * 1024, 64 * 1024 * 1024)),
@@ -88,7 +91,8 @@ impl Sandbox {
         let user_id = String::from_utf8(output.stdout)
             .map_err(|e| JudgeCoreError::AnyhowError(e.into()))?
             .trim()
-            .parse::<u32>().map_err(|e| JudgeCoreError::AnyhowError(e.into()))?;
+            .parse::<u32>()
+            .map_err(|e| JudgeCoreError::AnyhowError(e.into()))?;
         if unsafe { libc::getuid() == 0 } {
             log::debug!("Sandbox user id: {}", user_id);
         }
