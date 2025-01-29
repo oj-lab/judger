@@ -22,7 +22,7 @@ COPY judger/rclone.conf /workdir/rclone.conf
 RUN sed -i 's/127.0.0.1/host.docker.internal/g' /workdir/rclone.conf
 
 # Create sandbox user
-RUN useradd -m judger_sanbox
+RUN useradd -m judger_sandbox
 
 WORKDIR /workdir
 ENV RUST_LOG=DEBUG
