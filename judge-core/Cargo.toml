@@ -10,7 +10,7 @@ build = "build.rs"
 
 [dependencies]
 libc = "0.2"
-libseccomp = "0.3"
+libseccomp = "0.4"
 nix = { version = "0.29", features = ["event", "fs", "process", "resource"] }
 log = "0.4"
 anyhow = "1.0"
